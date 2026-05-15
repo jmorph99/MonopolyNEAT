@@ -1,8 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NEAT
 {
@@ -18,11 +15,7 @@ namespace NEAT
         public EType type;
         public int index = 0;
 
-        //structual information
         public List<Edge> incoming;
-
-        //output extraction
-        public float value = 0.0f;
 
         public Vertex(EType t, int i)
         {
@@ -41,17 +34,12 @@ namespace NEAT
             RECURRENT,
         }
 
-        //structual information
         public EType type = EType.FORWARD;
         public int source = 0;
         public int destination = 0;
 
-        //network information
         public float weight = 0.0f;
         public bool enabled = true;
-
-        //propagation information
-        public float signal = 0.0f;
 
         public Edge(int s, int d, float w, bool e)
         {
@@ -63,6 +51,10 @@ namespace NEAT
         }
     }
 
+    // Phenotype is the immutable, executable form of a Genotype.
+    // It holds the network topology and weights; per-call activation state
+    // lives in a workspace allocated inside Propagate, so multiple threads
+    // can safely share a single Phenotype.
     public class Phenotype
     {
         public List<Vertex> vertices;
@@ -70,6 +62,12 @@ namespace NEAT
 
         public List<Vertex> vertices_inputs;
         public List<Vertex> vertices_outputs;
+
+        // Positional indices into `vertices` for the input and output vertices.
+        // Edge.source / Edge.destination are used as direct indices into the
+        // activation workspace, so input/output reads/writes need the same scheme.
+        public List<int> input_positions;
+        public List<int> output_positions;
 
         public float score = 0;
 
@@ -80,6 +78,9 @@ namespace NEAT
 
             vertices_inputs = new List<Vertex>();
             vertices_outputs = new List<Vertex>();
+
+            input_positions = new List<int>();
+            output_positions = new List<int>();
         }
 
         public void InscribeGenotype(Genotype code)
@@ -92,10 +93,9 @@ namespace NEAT
 
             for (int i = 0; i < vertexCount; i++)
             {
-                //cast to int then to other enumerator type
                 AddVertex((Vertex.EType)(int)code.vertices[i].type, code.vertices[i].index);
             }
-            
+
             for (int i = 0; i < edgeCount; i++)
             {
                 AddEdge(code.edges[i].source, code.edges[i].destination, code.edges[i].weight, code.edges[i].enabled);
@@ -118,9 +118,13 @@ namespace NEAT
 
         public void ProcessGraph()
         {
+            input_positions.Clear();
+            output_positions.Clear();
+            vertices_inputs.Clear();
+            vertices_outputs.Clear();
+
             int verticesCount = vertices.Count;
 
-            //populate input and output sub-lists
             for (int i = 0; i < verticesCount; i++)
             {
                 Vertex vertex = vertices[i];
@@ -128,37 +132,33 @@ namespace NEAT
                 if (vertex.type == Vertex.EType.INPUT)
                 {
                     vertices_inputs.Add(vertex);
+                    input_positions.Add(i);
                 }
                 else if (vertex.type == Vertex.EType.OUTPUT)
                 {
                     vertices_outputs.Add(vertex);
+                    output_positions.Add(i);
                 }
-            }
-        }
-
-        public void ResetGraph()
-        {
-            int verticesCount = vertices.Count;
-
-            for (int i = 0; i < verticesCount; i++)
-            {
-                Vertex vertex = vertices[i];
-                vertex.value = 0.0f;
             }
         }
 
         public float[] Propagate(float[] X)
         {
             int repeats = 10;
+            int verticesCount = vertices.Count;
+            int outputsCount = vertices_outputs.Count;
+            int inputsCount = vertices_inputs.Count;
+
+            float[] values = new float[verticesCount];
 
             for (int e = 0; e < repeats; e++)
             {
-                for (int i = 0; i < vertices_inputs.Count; i++)
+                for (int i = 0; i < inputsCount; i++)
                 {
-                    vertices_inputs[i].value = X[i];
+                    values[input_positions[i]] = X[i];
                 }
 
-                for (int i = 0; i < vertices.Count; i++)
+                for (int i = 0; i < verticesCount; i++)
                 {
                     if (vertices[i].type == Vertex.EType.OUTPUT)
                     {
@@ -169,30 +169,33 @@ namespace NEAT
 
                     for (int j = 0; j < paths; j++)
                     {
-                        vertices[i].value += vertices[vertices[i].incoming[j].source].value * vertices[i].incoming[j].weight * (vertices[i].incoming[j].enabled ? 1.0f : 0.0f);
+                        Edge edge = vertices[i].incoming[j];
+                        values[i] += values[edge.source] * edge.weight * (edge.enabled ? 1.0f : 0.0f);
                     }
 
-                    if (vertices[i].incoming.Count > 0)
+                    if (paths > 0)
                     {
-                        vertices[i].value = Sigmoid(vertices[i].value);
+                        values[i] = Sigmoid(values[i]);
                     }
                 }
 
-                float[] Y = new float[vertices_outputs.Count];
+                float[] Y = new float[outputsCount];
 
-                for (int i = 0; i < vertices_outputs.Count; i++)
+                for (int i = 0; i < outputsCount; i++)
                 {
+                    int outPos = output_positions[i];
                     int paths = vertices_outputs[i].incoming.Count;
 
                     for (int j = 0; j < paths; j++)
                     {
-                        vertices_outputs[i].value += vertices[vertices_outputs[i].incoming[j].source].value * vertices_outputs[i].incoming[j].weight * (vertices_outputs[i].incoming[j].enabled ? 1.0f : 0.0f);
+                        Edge edge = vertices_outputs[i].incoming[j];
+                        values[outPos] += values[edge.source] * edge.weight * (edge.enabled ? 1.0f : 0.0f);
                     }
 
-                    if (vertices_outputs[i].incoming.Count > 0)
+                    if (paths > 0)
                     {
-                        vertices_outputs[i].value = Sigmoid(vertices_outputs[i].value);
-                        Y[i] = vertices_outputs[i].value;
+                        values[outPos] = Sigmoid(values[outPos]);
+                        Y[i] = values[outPos];
                     }
                 }
 
