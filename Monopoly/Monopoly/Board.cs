@@ -170,6 +170,57 @@ namespace MONOPOLY
             tiles = TileFactory.BuildTiles();
         }
 
+        // Snapshot the current board state into a fresh Board with the
+        // supplied policies and a fresh (or supplied) RNG. Used by MCTS
+        // to "branch" and play out hypothetical continuations.
+        //
+        // What gets deep-copied:
+        //  - all tile arrays (owners, mortgaged, houses, ...)
+        //  - per-player records (position, funds, items list, held cards)
+        //  - the chance and chest decks (Card objects are functionally
+        //    immutable so list-only copy is sufficient)
+        //  - turn / mode / supplies / counters
+        // What gets shared (safe):
+        //  - tiles array (Tile objects are stateless rule strategies)
+        //  - Card objects themselves
+        //  - the static tables (PROPS, COSTS, ...)
+        // What gets replaced:
+        //  - policies (caller-supplied, so the clone can run any seats)
+        //  - random (a clone with the original RNG would couple their dice;
+        //    a fresh RNG keeps the simulation independent)
+        public Board Clone(IPolicy[] newPolicies, RNG newRng = null)
+        {
+            Board b = (Board)MemberwiseClone();
+            b.policies = newPolicies;
+            b.random = newRng ?? new RNG();
+
+            b.mortgaged = (bool[])mortgaged.Clone();
+            b.owners = (int[])owners.Clone();
+            b.property = (int[])property.Clone();
+            b.houses = (int[])houses.Clone();
+            b.original = (int[])original.Clone();
+
+            b.players = new Player[PLAYER_COUNT];
+            for (int i = 0; i < PLAYER_COUNT; i++)
+            {
+                Player src = players[i];
+                Player dst = new Player();
+                dst.state = src.state;
+                dst.position = src.position;
+                dst.funds = src.funds;
+                dst.jail = src.jail;
+                dst.doub = src.doub;
+                dst.items = new List<int>(src.items);
+                dst.heldCards = new List<GetOutOfJailCard>(src.heldCards);
+                b.players[i] = dst;
+            }
+
+            b.chance = new List<Card>(chance);
+            b.chest = new List<Card>(chest);
+
+            return b;
+        }
+
         public EOutcome Step()
         {
             switch (mode)

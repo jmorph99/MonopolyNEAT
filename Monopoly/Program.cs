@@ -31,6 +31,18 @@ namespace Monopoly
             NEAT.Crossover.Initialise();
             NEAT.Population.Initialise();
 
+            // Special non-trainer command: smoke-test MCTS by playing a
+            // handful of games with seat 0 wrapped in MctsPolicy vs three
+            // plain ScriptedPolicy seats. Verifies the Board.Clone path
+            // and the MCTS rollout machinery without needing a checkpoint.
+            if (trainerName == "mcts-demo")
+            {
+                int games = args.Length > 1 ? int.Parse(args[1]) : 3;
+                int rollouts = args.Length > 2 ? int.Parse(args[2]) : 2;
+                RunMctsDemo(games, rollouts);
+                return;
+            }
+
             TRAINING.ITrainer trainer = BuildTrainer(trainerName);
             Console.WriteLine("TRAINER: " + trainer.Name);
             Console.WriteLine("CHECKPOINT: " + path);
@@ -46,6 +58,32 @@ namespace Monopoly
                 trainer.Step();
                 trainer.Save(path);
             }
+        }
+
+        // Play `games` matches with MctsPolicy(ScriptedPolicy, rollouts) at
+        // seat 0 vs three ScriptedPolicy seats. Reports win count for seat 0.
+        static void RunMctsDemo(int games, int rollouts)
+        {
+            Console.WriteLine("MCTS demo: " + games + " games, rollouts=" + rollouts);
+            int seat0Wins = 0;
+            for (int g = 0; g < games; g++)
+            {
+                MONOPOLY.IPolicy baseInner = new MONOPOLY.ScriptedPolicy();
+                MONOPOLY.IPolicy[] policies = new MONOPOLY.IPolicy[]
+                {
+                    new MONOPOLY.MctsPolicy(baseInner, rollouts),
+                    new MONOPOLY.ScriptedPolicy(),
+                    new MONOPOLY.ScriptedPolicy(),
+                    new MONOPOLY.ScriptedPolicy(),
+                };
+                MONOPOLY.Board board = new MONOPOLY.Board(policies);
+                MONOPOLY.Board.EOutcome outcome = MONOPOLY.Board.EOutcome.ONGOING;
+                while (outcome == MONOPOLY.Board.EOutcome.ONGOING) outcome = board.Step();
+
+                if (outcome == MONOPOLY.Board.EOutcome.WIN1) seat0Wins++;
+                Console.WriteLine("  game " + g + " outcome=" + outcome);
+            }
+            Console.WriteLine("MCTS seat-0 wins: " + seat0Wins + "/" + games);
         }
 
         static TRAINING.ITrainer BuildTrainer(string name)

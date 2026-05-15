@@ -6,6 +6,49 @@ continue to load as before across all changes below.
 
 ---
 
+## AlphaZero-style MCTS decision improver
+
+The fifth training method from `models.md` is AlphaZero with chance
+nodes — a policy/value network guided by Monte Carlo Tree Search. A
+faithful AlphaZero needs both a value head on the network and a deep
+search tree, which is significant scope. What's landed here is the
+first piece: a working **decision-time rollout improver** that wraps
+any existing policy.
+
+How it works at every binary decision (BUY vs AUCTION, YES vs NO):
+
+1. Clone the current Board (a real deep copy — tile arrays, players,
+   decks, supplies).
+2. Force the decision to YES and simulate to game-end using the
+   wrapped policy for everything else. Record who won. Do this K times.
+3. Force the decision to NO, repeat K times.
+4. Return the choice that won more often.
+
+This is flat Monte Carlo (one ply of lookahead) and only handles
+binary decisions — it delegates multi-output decisions (auction bids,
+build/sell counts) to the wrapped policy. A full AlphaZero would
+extend this with a deeper tree (UCB-guided traversal) and a value
+network providing leaf estimates without rolling out to terminal.
+
+The new `Board.Clone()` method is the foundation: every MCTS branch
+runs on its own Board copy, so rollouts don't contaminate the live
+game. Same method enables future PPO / DQN trajectory replay too.
+
+Smoke-tested with a new `mcts-demo` command that pits
+`MctsPolicy(ScriptedPolicy, rollouts=2)` at seat 0 against three
+plain `ScriptedPolicy` opponents:
+
+```
+dotnet run --project Monopoly -- mcts-demo 3 2
+```
+
+All three games completed without errors — the rollout machinery is
+sound. Actual playing strength gains require a stronger base policy
+(NEAT/ES champion) and more rollouts; that combination is what the
+user will use at evaluation time.
+
+---
+
 ## PSRO (Policy-Space Response Oracles) league training
 
 The first training method that explicitly tackles NEAT's biggest
