@@ -25,7 +25,7 @@ namespace MONOPOLY
             List<Player> candidates = new List<Player>();
             List<int> candidates_index = new List<int>();
 
-            for (int i = 0; i < Board.PLAYER_COUNT; i++)
+            for (int i = 0; i < board.player_count; i++)
             {
                 if (i == turn) continue;
                 if (board.players[i].state == Player.EState.RETIRED) continue;

@@ -6,6 +6,61 @@ continue to load as before across all changes below.
 
 ---
 
+## 6-player showdown: one model per seat
+
+A new evaluation command pits all five training methods (and a baseline
+ScriptedPolicy) against each other in 6-player games. Each game has
+one model per seat; seats are randomly permuted every game so no model
+has a permanent seat-1 advantage. Per-model win rates are tallied at
+the end.
+
+Run with:
+
+```
+dotnet run --project Monopoly -- showdown <games> [neat] [es] [cmaes] [psro] [ppo]
+```
+
+Missing checkpoint paths (or "-") fall back to ScriptedPolicy. With no
+arguments, the command looks for the standard checkpoint names
+(`monopoly_population.txt`, `monopoly_es.txt`, etc.) and uses
+ScriptedPolicy for anything missing.
+
+Two pieces of infrastructure made this possible:
+
+**Board now supports 2–6 players.** Previously the player count was a
+static constant `Board.PLAYER_COUNT = 4`. Now it's a per-Board instance
+field inferred from the policies array, so existing 4-player code paths
+stay untouched while the showdown creates 6-player Boards. The win
+enum gained `WIN5` and `WIN6` to match.
+
+**Ego-centric projection.** The trained networks have a 127-float
+input that encodes 4 players. For 6-player games we keep that exact
+input shape — no retraining needed — by remapping seats *ego-centrically*:
+
+- The player being asked always occupies "slot 0" in the input.
+- The three richest opponents (by funds + total property cost) take
+  slots 1, 2, 3 in descending order.
+- The remaining two opponents share slot 3 for ownership encoding
+  (their property holdings still appear, but only the richest of
+  them contributes per-player scalars to slot 3).
+
+The end result: a network trained on 4-player games can play in
+6-player games without any architectural change. Its view is a
+"me + 3 most-important opponents" summary. This is a deliberate
+information loss — the 2 hidden opponents still play and can win,
+they're just merged in the model's input.
+
+Threading is capped at 8 workers via a work-stealing pool. Games are
+deal-with-as-they-finish; results are tallied under a single lock.
+
+Verified: a gen-162 NEAT checkpoint loaded cleanly into the showdown
+and played 6 games against 5 ScriptedPolicy opponents (all draws —
+ScriptedPolicy is too passive to drive games to completion, so this
+just confirms the mechanics work). The 4-player NEAT and ES training
+paths are unchanged and continue to load + step normally.
+
+---
+
 ## PPO is now fully trainable via TorchSharp
 
 PPO no longer raises `NotImplementedException` at the gradient step.

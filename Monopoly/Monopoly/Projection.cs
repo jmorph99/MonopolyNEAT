@@ -130,41 +130,34 @@ namespace MONOPOLY
         // `viewingPlayer` is the player whose turn/perspective is being
         // encoded into the turn one-hot. `ctx` describes the question being
         // asked (which tiles are flagged + any money balance).
+        //
+        // 4-player games (player_count == 4): absolute seat encoding,
+        // identical to the original layout. Existing trained networks see
+        // exactly the input they were trained on.
+        //
+        // 5/6-player games (player_count > 4): ego-centric remap into the
+        // 4 player slots. viewingPlayer occupies slot 0. The 3 richest
+        // opponents (by funds + sum of property COSTS) take slots 1-3 in
+        // descending order. Hidden opponents share slot 3 for ownership
+        // encoding, but slot 3's per-player scalars belong to the single
+        // richest seat assigned there. This keeps the network's 127-input
+        // shape — trained checkpoints stay usable — while degrading
+        // gracefully when more players exist than slots.
         public static float[] Project(Board board, int viewingPlayer, DecisionContext ctx)
         {
             float[] pack = new float[PACK_SIZE];
+            int N = board.player_count;
 
-            // turn: one-hot
-            pack[OFF_TURN + viewingPlayer] = 1.0f;
-
-            // per-player scalars
-            for (int i = 0; i < Board.PLAYER_COUNT; i++)
+            if (N <= 4)
             {
-                Player p = board.players[i];
-                pack[OFF_POS + i] = ConvertPosition(p.position);
-                pack[OFF_MONEY + i] = ConvertMoney(p.funds);
-                pack[OFF_CARD + i] = ConvertCard(p.card);
-                pack[OFF_JAIL + i] = (p.state == Player.EState.JAIL) ? 1.0f : 0.0f;
+                ProjectAbsolute(pack, board, viewingPlayer, N);
+            }
+            else
+            {
+                ProjectEgocentric(pack, board, viewingPlayer);
             }
 
-            // per-tile state: owners, mortgages, houses
-            for (int idx = 0; idx < Board.BOARD_LENGTH; idx++)
-            {
-                int propSlot = PROPS[idx];
-                if (propSlot >= 0)
-                {
-                    pack[OFF_OWN + propSlot] = ConvertOwner(board.owners[idx]);
-                    pack[OFF_MORT + propSlot] = board.mortgaged[idx] ? 1.0f : 0.0f;
-                }
-
-                int houseSlot = HOUSES[idx];
-                if (houseSlot >= 0)
-                {
-                    pack[OFF_HOUSE + houseSlot] = ConvertHouse(board.houses[idx]);
-                }
-            }
-
-            // selection bits
+            // selection bits — board-state index, ego-invariant.
             if (ctx.selectedTiles != null)
             {
                 for (int i = 0; i < ctx.selectedTiles.Length; i++)
@@ -176,11 +169,134 @@ namespace MONOPOLY
                     }
                 }
             }
-
-            // money context for trades
             pack[OFF_MONEY_CTX] = ctx.moneyBalance;
-
             return pack;
+        }
+
+        // 4-player original layout — preserved exactly.
+        private static void ProjectAbsolute(float[] pack, Board board, int viewingPlayer, int N)
+        {
+            pack[OFF_TURN + viewingPlayer] = 1.0f;
+
+            for (int i = 0; i < N; i++)
+            {
+                Player p = board.players[i];
+                pack[OFF_POS + i] = ConvertPosition(p.position);
+                pack[OFF_MONEY + i] = ConvertMoney(p.funds);
+                pack[OFF_CARD + i] = ConvertCard(p.card);
+                pack[OFF_JAIL + i] = (p.state == Player.EState.JAIL) ? 1.0f : 0.0f;
+            }
+
+            for (int idx = 0; idx < Board.BOARD_LENGTH; idx++)
+            {
+                int propSlot = PROPS[idx];
+                if (propSlot >= 0)
+                {
+                    pack[OFF_OWN + propSlot] = ConvertOwner(board.owners[idx]);
+                    pack[OFF_MORT + propSlot] = board.mortgaged[idx] ? 1.0f : 0.0f;
+                }
+                int houseSlot = HOUSES[idx];
+                if (houseSlot >= 0)
+                {
+                    pack[OFF_HOUSE + houseSlot] = ConvertHouse(board.houses[idx]);
+                }
+            }
+        }
+
+        // Ego-centric layout for player_count > 4. Always emits 127 floats.
+        private static void ProjectEgocentric(float[] pack, Board board, int viewingPlayer)
+        {
+            // egoSlot[seat] maps absolute seat to ego slot 0..3.
+            // slotRep[slot] is which seat owns each ego slot's per-player scalars.
+            int[] egoSlot;
+            int[] slotRep;
+            BuildEgoMap(board, viewingPlayer, out egoSlot, out slotRep);
+
+            // Turn one-hot: viewer (slot 0) is always the player being polled.
+            pack[OFF_TURN + 0] = 1.0f;
+
+            // Per-player scalars: one representative seat per ego slot.
+            for (int slot = 0; slot < 4; slot++)
+            {
+                int seat = slotRep[slot];
+                if (seat < 0) continue;
+                Player p = board.players[seat];
+                pack[OFF_POS + slot] = ConvertPosition(p.position);
+                pack[OFF_MONEY + slot] = ConvertMoney(p.funds);
+                pack[OFF_CARD + slot] = ConvertCard(p.card);
+                pack[OFF_JAIL + slot] = (p.state == Player.EState.JAIL) ? 1.0f : 0.0f;
+            }
+
+            // Per-tile state: ownership remapped through egoSlot, mortgage
+            // and house counts are seat-independent.
+            for (int idx = 0; idx < Board.BOARD_LENGTH; idx++)
+            {
+                int propSlot = PROPS[idx];
+                if (propSlot >= 0)
+                {
+                    int owner = board.owners[idx];
+                    int egoOwner = owner < 0 ? -1 : egoSlot[owner];
+                    pack[OFF_OWN + propSlot] = ConvertOwner(egoOwner);
+                    pack[OFF_MORT + propSlot] = board.mortgaged[idx] ? 1.0f : 0.0f;
+                }
+                int houseSlot = HOUSES[idx];
+                if (houseSlot >= 0)
+                {
+                    pack[OFF_HOUSE + houseSlot] = ConvertHouse(board.houses[idx]);
+                }
+            }
+        }
+
+        // Build the ego map and per-slot representative seats. Sorting is
+        // by approximate net worth: funds + sum of COSTS[items] (ignores
+        // mortgage discount and house value — close enough for ranking).
+        private static void BuildEgoMap(Board board, int viewingPlayer, out int[] egoSlot, out int[] slotRep)
+        {
+            int N = board.player_count;
+            egoSlot = new int[N];
+            slotRep = new int[] { -1, -1, -1, -1 };
+            slotRep[0] = viewingPlayer;
+            egoSlot[viewingPlayer] = 0;
+
+            int[] oppSeats = new int[N - 1];
+            int[] oppWorth = new int[N - 1];
+            int oppCount = 0;
+            for (int i = 0; i < N; i++)
+            {
+                if (i == viewingPlayer) continue;
+                int w = board.players[i].funds;
+                for (int k = 0; k < board.players[i].items.Count; k++)
+                {
+                    int pidx = board.players[i].items[k];
+                    w += Board.COSTS[pidx];
+                }
+                oppSeats[oppCount] = i;
+                oppWorth[oppCount] = w;
+                oppCount++;
+            }
+
+            // Simple selection sort by descending worth — N is tiny.
+            for (int i = 0; i < oppCount - 1; i++)
+            {
+                int maxIdx = i;
+                for (int j = i + 1; j < oppCount; j++)
+                {
+                    if (oppWorth[j] > oppWorth[maxIdx]) maxIdx = j;
+                }
+                if (maxIdx != i)
+                {
+                    (oppWorth[i], oppWorth[maxIdx]) = (oppWorth[maxIdx], oppWorth[i]);
+                    (oppSeats[i], oppSeats[maxIdx]) = (oppSeats[maxIdx], oppSeats[i]);
+                }
+            }
+
+            // Assign top 3 opponents to ego slots 1, 2, 3.
+            for (int i = 0; i < oppCount; i++)
+            {
+                int slot = (i < 3) ? i + 1 : 3;        // overflow collides at slot 3
+                egoSlot[oppSeats[i]] = slot;
+                if (slotRep[slot] == -1) slotRep[slot] = oppSeats[i];  // first to claim wins
+            }
         }
 
         // Convenience: project with no selection context.

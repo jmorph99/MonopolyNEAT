@@ -118,8 +118,8 @@ namespace MONOPOLY
             int wins = 0;
             for (int r = 0; r < rollouts; r++)
             {
-                ForcedFirstBuy[] policies = new ForcedFirstBuy[Board.PLAYER_COUNT];
-                for (int i = 0; i < Board.PLAYER_COUNT; i++)
+                ForcedFirstBuy[] policies = new ForcedFirstBuy[board.player_count];
+                for (int i = 0; i < board.player_count; i++)
                 {
                     policies[i] = new ForcedFirstBuy(inner, i == playerIdx ? isOption : -1);
                 }
@@ -162,8 +162,8 @@ namespace MONOPOLY
             int wins = 0;
             for (int r = 0; r < rollouts; r++)
             {
-                ForcedFirstYesNo[] policies = new ForcedFirstYesNo[Board.PLAYER_COUNT];
-                for (int i = 0; i < Board.PLAYER_COUNT; i++)
+                ForcedFirstYesNo[] policies = new ForcedFirstYesNo[board.player_count];
+                for (int i = 0; i < board.player_count; i++)
                 {
                     policies[i] = new ForcedFirstYesNo(inner, i == playerIdx ? (forced == Player.EDecision.YES ? 1 : 0) : -1);
                 }
@@ -186,14 +186,7 @@ namespace MONOPOLY
 
         private static int WinnerSeat(Board.EOutcome o)
         {
-            switch (o)
-            {
-                case Board.EOutcome.WIN1: return 0;
-                case Board.EOutcome.WIN2: return 1;
-                case Board.EOutcome.WIN3: return 2;
-                case Board.EOutcome.WIN4: return 3;
-                default: return -1;
-            }
+            return Board.SeatForWinOutcome(o);
         }
     }
 

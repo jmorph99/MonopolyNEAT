@@ -13,14 +13,14 @@ namespace MONOPOLY
     {
         public static void Run(Board board, int index)
         {
-            bool[] participation = new bool[Board.PLAYER_COUNT];
-            for (int i = 0; i < Board.PLAYER_COUNT; i++)
+            bool[] participation = new bool[board.player_count];
+            for (int i = 0; i < board.player_count; i++)
             {
                 participation[i] = board.players[i].state != Player.EState.RETIRED;
             }
 
-            int[] bids = new int[Board.PLAYER_COUNT];
-            for (int i = 0; i < Board.PLAYER_COUNT; i++)
+            int[] bids = new int[board.player_count];
+            for (int i = 0; i < board.player_count; i++)
             {
                 bids[i] = board.policies[i].DecideAuctionBid(board, i, index);
                 if (bids[i] > board.players[i].funds)
@@ -30,7 +30,7 @@ namespace MONOPOLY
             }
 
             int max = 0;
-            for (int i = 0; i < Board.PLAYER_COUNT; i++)
+            for (int i = 0; i < board.player_count; i++)
             {
                 if (participation[i] && bids[i] > max)
                 {
@@ -40,7 +40,7 @@ namespace MONOPOLY
 
             List<int> candidates = new List<int>();
             List<int> backup = new List<int>();
-            for (int i = 0; i < Board.PLAYER_COUNT; i++)
+            for (int i = 0; i < board.player_count; i++)
             {
                 if (participation[i] && bids[i] == max)
                 {

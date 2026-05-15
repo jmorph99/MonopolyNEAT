@@ -132,7 +132,7 @@ namespace MONOPOLY
         // Pay $50 to each non-retired other player.
         public override void Apply(Board board, int playerIdx)
         {
-            for (int i = 0; i < Board.PLAYER_COUNT; i++)
+            for (int i = 0; i < board.player_count; i++)
             {
                 if (i == playerIdx) continue;
                 if (board.players[i].state == Player.EState.RETIRED) continue;
@@ -147,7 +147,7 @@ namespace MONOPOLY
         // Collect $10 from each non-retired other player.
         public override void Apply(Board board, int playerIdx)
         {
-            for (int i = 0; i < Board.PLAYER_COUNT; i++)
+            for (int i = 0; i < board.player_count; i++)
             {
                 if (i == playerIdx) continue;
                 if (board.players[i].state == Player.EState.RETIRED) continue;

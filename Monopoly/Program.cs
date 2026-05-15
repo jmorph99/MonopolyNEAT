@@ -18,8 +18,6 @@ namespace Monopoly
         static void Main(string[] args)
         {
             string trainerName = args.Length > 0 ? args[0] : "neat";
-            string path = args.Length > 1 ? args[1] : "monopoly_population.txt";
-            int iterations = args.Length > 2 ? int.Parse(args[2]) : 1000;
 
             Analytics a = new Analytics();
             Analytics.instance = a;
@@ -42,6 +40,19 @@ namespace Monopoly
                 RunMctsDemo(games, rollouts);
                 return;
             }
+
+            // 6-player showdown: each seat is a different model. Reports
+            // per-model win rate over N games. Caps at 8 worker threads.
+            //   Usage: showdown [games] [neat] [es] [cmaes] [psro] [ppo]
+            if (trainerName == "showdown")
+            {
+                RunShowdown(args);
+                return;
+            }
+
+            // Trainer-mode CLI: trainer <path> <iterations>
+            string path = args.Length > 1 ? args[1] : "monopoly_population.txt";
+            int iterations = args.Length > 2 ? int.Parse(args[2]) : 1000;
 
             TRAINING.ITrainer trainer = BuildTrainer(trainerName);
             Console.WriteLine("TRAINER: " + trainer.Name);
@@ -84,6 +95,25 @@ namespace Monopoly
                 Console.WriteLine("  game " + g + " outcome=" + outcome);
             }
             Console.WriteLine("MCTS seat-0 wins: " + seat0Wins + "/" + games);
+        }
+
+        // Build 6 models from checkpoint paths (positional args or sensible
+        // defaults), play N 6-player games with random seat assignments,
+        // and report per-model win rates. Pool capped at 8 threads.
+        static void RunShowdown(string[] args)
+        {
+            int games = args.Length > 1 ? int.Parse(args[1]) : 12;
+            string neat = args.Length > 2 ? args[2] : "monopoly_population.txt";
+            string es = args.Length > 3 ? args[3] : "monopoly_es.txt";
+            string cmaes = args.Length > 4 ? args[4] : "monopoly_cmaes.txt";
+            string psro = args.Length > 5 ? args[5] : "monopoly_psro.txt";
+            string ppo = args.Length > 6 ? args[6] : "monopoly_ppo.txt";
+
+            Console.WriteLine("Showdown: " + games + " games, 6 players, max 8 threads");
+            MONOPOLY.IPolicy[] models = TRAINING.Showdown.BuildModels(neat, es, cmaes, psro, ppo);
+
+            int[] wins = TRAINING.Showdown.Run(models, games);
+            TRAINING.Showdown.PrintTally(wins, games);
         }
 
         static TRAINING.ITrainer BuildTrainer(string name)

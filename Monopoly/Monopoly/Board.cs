@@ -16,6 +16,37 @@ namespace MONOPOLY
             WIN2,
             WIN3,
             WIN4,
+            WIN5,
+            WIN6,
+        }
+
+        // Map seat index 0..5 to EOutcome.WIN1..WIN6.
+        public static EOutcome WinOutcomeForSeat(int seat)
+        {
+            switch (seat)
+            {
+                case 0: return EOutcome.WIN1;
+                case 1: return EOutcome.WIN2;
+                case 2: return EOutcome.WIN3;
+                case 3: return EOutcome.WIN4;
+                case 4: return EOutcome.WIN5;
+                case 5: return EOutcome.WIN6;
+                default: return EOutcome.DRAW;
+            }
+        }
+
+        public static int SeatForWinOutcome(EOutcome o)
+        {
+            switch (o)
+            {
+                case EOutcome.WIN1: return 0;
+                case EOutcome.WIN2: return 1;
+                case EOutcome.WIN3: return 2;
+                case EOutcome.WIN4: return 3;
+                case EOutcome.WIN5: return 4;
+                case EOutcome.WIN6: return 5;
+                default: return -1;
+            }
         }
 
         public enum EMode
@@ -37,6 +68,8 @@ namespace MONOPOLY
 
         //constants
         //--------------------
+        // Default player count for backward compatibility. Individual Boards
+        // can override via the constructor; see `player_count` below.
         public static int PLAYER_COUNT = 4;
 
         public static int BANK_INDEX = -1;
@@ -118,6 +151,12 @@ namespace MONOPOLY
         public IPolicy[] policies;
         public RNG random;
 
+        // Per-instance player count. Defaults to 4 for backward compatibility
+        // with the existing trainers; the new 6-player showdown uses 6.
+        // Whenever code needs "how many seats", read board.player_count, NOT
+        // the legacy static Board.PLAYER_COUNT.
+        public int player_count = PLAYER_COUNT;
+
         public int turn = 0;
         public int count = 0;
         public int remaining = 0;
@@ -153,16 +192,24 @@ namespace MONOPOLY
         // reproducible.
         public Board(IPolicy[] _policies, RNG rng)
         {
-            players = new Player[PLAYER_COUNT];
+            // Player count is inferred from the policies array (one IPolicy
+            // per seat) and clamped to [2, 6]. Existing 4-player call sites
+            // are unchanged; 6-player showdown passes 6 policies.
+            int n = _policies != null ? _policies.Length : PLAYER_COUNT;
+            if (n < 2) n = 2;
+            if (n > 6) n = 6;
+            player_count = n;
+
+            players = new Player[player_count];
             policies = _policies;
             random = rng;
 
-            for (int i = 0; i < PLAYER_COUNT; i++)
+            for (int i = 0; i < player_count; i++)
             {
                 players[i] = new Player();
             }
 
-            remaining = PLAYER_COUNT;
+            remaining = player_count;
 
             chance = random.Shuffle(Decks.NewChance());
             chest = random.Shuffle(Decks.NewChest());
@@ -193,6 +240,7 @@ namespace MONOPOLY
             Board b = (Board)MemberwiseClone();
             b.policies = newPolicies;
             b.random = newRng ?? new RNG();
+            b.player_count = player_count;
 
             b.mortgaged = (bool[])mortgaged.Clone();
             b.owners = (int[])owners.Clone();
@@ -200,8 +248,8 @@ namespace MONOPOLY
             b.houses = (int[])houses.Clone();
             b.original = (int[])original.Clone();
 
-            b.players = new Player[PLAYER_COUNT];
-            for (int i = 0; i < PLAYER_COUNT; i++)
+            b.players = new Player[player_count];
+            for (int i = 0; i < player_count; i++)
             {
                 Player src = players[i];
                 Player dst = new Player();
@@ -367,21 +415,15 @@ namespace MONOPOLY
 
                 int count = 0;
 
-                while (players[turn].state == Player.EState.RETIRED && count <= PLAYER_COUNT * 2)
+                while (players[turn].state == Player.EState.RETIRED && count <= player_count * 2)
                 {
                     IncrementTurn();
                     count++;
                 }
-                
+
                 if (remaining <= 1)
                 {
-                    switch (turn)
-                    {
-                        case 0: return EOutcome.WIN1;
-                        case 1: return EOutcome.WIN2;
-                        case 2: return EOutcome.WIN3;
-                        case 3: return EOutcome.WIN4;
-                    }
+                    return WinOutcomeForSeat(turn);
                 }
             }
 
@@ -399,7 +441,7 @@ namespace MONOPOLY
         {
             turn++;
 
-            if (turn >= PLAYER_COUNT)
+            if (turn >= player_count)
             {
                 turn = 0;
             }
