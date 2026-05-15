@@ -13,6 +13,11 @@ public class RNG
         gen = new Random();
     }
 
+    public RNG(int seed)
+    {
+        gen = new Random(seed);
+    }
+
     public static void Initialise()
     {
         if (instance == null)

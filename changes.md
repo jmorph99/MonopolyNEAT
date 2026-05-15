@@ -6,6 +6,28 @@ continue to load as before across all changes below.
 
 ---
 
+## Trading and auction logic moved out of the main game file; games can now be replayed
+
+Two chunks of game logic that used to live tangled inside the main `Board`
+class — the speculative trade round at the start of each turn, and the
+auction that runs when a player passes on a property — now have their
+own files (`TradeRound.cs` and `AuctionRound.cs`). Same rules, same
+random proposals, same tie-break behavior; just isolated so each can be
+exercised on its own.
+
+In the same step, `Board`'s random-number generator is now something the
+caller can supply: `new Board(policies, new RNG(42))` constructs a Board
+whose dice rolls, card shuffles, trade proposals, and auction tie-breaks
+are all reproducible from that seed. The default `new Board(policies)`
+constructor still seeds from the system clock as before, so tournament
+play is unchanged.
+
+This is the foundation for deterministic-replay debugging — when a
+trained network behaves strangely, you can save the seed, re-run that
+exact game, and step through what happened.
+
+---
+
 ## Network input now computed fresh at each decision, not patched incrementally
 
 The neural network sees the game state as a 127-number vector that says

@@ -77,7 +77,7 @@ namespace MONOPOLY
                 {
                     if (board.players[playerIdx].funds < Board.COSTS[index])
                     {
-                        board.Auction(index);
+                        AuctionRound.Run(board, index);
                     }
                     else
                     {
@@ -92,7 +92,7 @@ namespace MONOPOLY
                 }
                 else if (decision == Player.EBuyDecision.AUCTION)
                 {
-                    board.Auction(index);
+                    AuctionRound.Run(board, index);
                 }
             }
             else if (owner == playerIdx)
@@ -123,7 +123,7 @@ namespace MONOPOLY
                 {
                     if (board.players[playerIdx].funds < Board.COSTS[index])
                     {
-                        board.Auction(index);
+                        AuctionRound.Run(board, index);
                     }
                     else
                     {
@@ -135,7 +135,7 @@ namespace MONOPOLY
                 }
                 else if (decision == Player.EBuyDecision.AUCTION)
                 {
-                    board.Auction(index);
+                    AuctionRound.Run(board, index);
                 }
             }
             else if (!board.mortgaged[index])
@@ -168,7 +168,7 @@ namespace MONOPOLY
                 {
                     if (board.players[playerIdx].funds < Board.COSTS[index])
                     {
-                        board.Auction(index);
+                        AuctionRound.Run(board, index);
                     }
                     else
                     {
@@ -180,7 +180,7 @@ namespace MONOPOLY
                 }
                 else if (decision == Player.EBuyDecision.AUCTION)
                 {
-                    board.Auction(index);
+                    AuctionRound.Run(board, index);
                 }
             }
             else if (owner == playerIdx)

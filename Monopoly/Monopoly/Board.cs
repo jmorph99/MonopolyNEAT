@@ -133,11 +133,19 @@ namespace MONOPOLY
         // tile table — built once per Board, owns its own rules
         public Tile[] tiles;
 
-        public Board(IPolicy[] _policies)
+        public Board(IPolicy[] _policies) : this(_policies, new RNG())
+        {
+        }
+
+        // Construct a Board with a caller-supplied RNG. Used for
+        // deterministic-replay scenarios — pass `new RNG(seed)` and the dice,
+        // card shuffles, trade proposals and auction tie-breaks become
+        // reproducible.
+        public Board(IPolicy[] _policies, RNG rng)
         {
             players = new Player[PLAYER_COUNT];
             policies = _policies;
-            random = new RNG();
+            random = rng;
 
             for (int i = 0; i < PLAYER_COUNT; i++)
             {
@@ -432,214 +440,7 @@ namespace MONOPOLY
                 }
             }
 
-            Trading();
-        }
-
-        public void Trading()
-        {
-            List<Player> candidates = new List<Player>();
-            List<int> candidates_index = new List<int>();
-
-            for (int i = 0; i < PLAYER_COUNT; i++)
-            {
-                if (i == turn)
-                {
-                    continue;
-                }
-
-                if (players[i].state == Player.EState.RETIRED)
-                {
-                    continue;
-                }
-
-                candidates.Add(players[i]);
-                candidates_index.Add(i);
-            }
-
-            if (candidates.Count == 0)
-            {
-                return;
-            }
-
-            int TRADE_ATTEMPTS = 4;
-            int TRADE_ITEM_MAX = 5;
-            int TRADE_MONEY_MAX = 500;
-
-            for (int t = 0; t < TRADE_ATTEMPTS; t++)
-            {
-                int give = random.gen.Next(0, Math.Min(players[turn].items.Count, TRADE_ITEM_MAX));
-
-                int selectedPlayer = random.gen.Next(0, candidates.Count);
-
-                Player other = candidates[selectedPlayer];
-                int other_index = candidates_index[selectedPlayer];
-
-                int recieve = random.gen.Next(0, Math.Min(other.items.Count, TRADE_ITEM_MAX));
-
-                if (players[turn].funds < 0 || other.funds < 0)
-                {
-                    continue;
-                }
-
-                int moneyGive = random.gen.Next(0, Math.Min(players[turn].funds, TRADE_MONEY_MAX));
-                int moneyRecieve = random.gen.Next(0, Math.Min(other.funds, TRADE_MONEY_MAX));
-                int moneyBalance = moneyGive - moneyRecieve;
-
-                if (give == 0 || recieve == 0)
-                {
-                    continue;
-                }
-
-                List<int> gift = new List<int>();
-                List<int> possible = new List<int>(players[turn].items);
-
-                for (int i = 0; i < give; i++)
-                {
-                    int selection = random.gen.Next(0, possible.Count);
-
-                    gift.Add(possible[selection]);
-                    possible.RemoveAt(selection);
-                }
-
-                List<int> returning = new List<int>();
-
-                possible = new List<int>(other.items);
-
-                for (int i = 0; i < recieve; i++)
-                {
-                    int selection = random.gen.Next(0, possible.Count);
-
-                    returning.Add(possible[selection]);
-                    possible.RemoveAt(selection);
-                }
-
-                int[] giftArr = gift.ToArray();
-                int[] returningArr = returning.ToArray();
-
-                Player.EDecision decision = policies[turn].DecideOfferTrade(this, turn, giftArr, returningArr, moneyBalance);
-
-                if (decision == Player.EDecision.NO)
-                {
-                    continue;
-                }
-
-                Player.EDecision decision2 = policies[other_index].DecideAcceptTrade(this, other_index, giftArr, returningArr, moneyBalance);
-
-                if (decision2 == Player.EDecision.NO)
-                {
-                    continue;
-                }
-
-                for (int i = 0; i < gift.Count; i++)
-                {
-                    Monopoly.Analytics.instance.MadeTrade(gift[i]);
-
-                    players[turn].items.Remove(gift[i]);
-                    other.items.Add(gift[i]);
-
-                    owners[gift[i]] = other_index;
-                }
-
-                for (int i = 0; i < returning.Count; i++)
-                {
-                    Monopoly.Analytics.instance.MadeTrade(returning[i]);
-
-                    other.items.Remove(returning[i]);
-                    players[turn].items.Add(returning[i]);
-
-                    owners[returning[i]] = turn;
-                }
-
-
-                players[turn].funds -= moneyBalance;
-                other.funds += moneyBalance;
-            }
-        }
-
-        public void Auction(int index)
-        {
-            bool[] participation = new bool[PLAYER_COUNT];
-
-            for (int i = 0; i < PLAYER_COUNT; i++)
-            {
-                participation[i] = players[i].state != Player.EState.RETIRED;
-            }
-
-            int[] bids = new int[PLAYER_COUNT];
-
-            for (int i = 0; i < PLAYER_COUNT; i++)
-            {
-
-
-                bids[i] = policies[i].DecideAuctionBid(this, i, index);
-
-
-                if (bids[i] > players[i].funds)
-                {
-                    participation[i] = false;
-                }
-            }
-
-            int max = 0;
-
-            for (int i = 0; i < PLAYER_COUNT; i++)
-            {
-                if (participation[i])
-                {
-                    if (bids[i] > max)
-                    {
-                        max = bids[i];
-                    }
-                }
-            }
-
-            List<int> candidates = new List<int>();
-            List<int> backup = new List<int>();
-
-            for (int i = 0; i < PLAYER_COUNT; i++)
-            {
-                if (participation[i])
-                {
-                    if (bids[i] == max)
-                    {
-                        candidates.Add(i);
-                    }
-                }
-                
-                if (players[i].state != Player.EState.RETIRED)
-                {
-                    backup.Add(i);
-                }
-            }
-
-            if (candidates.Count > 0)
-            {
-                int winner = candidates[random.gen.Next(0, candidates.Count)];
-
-                Payment(winner, max);
-
-                owners[index] = winner;
-                players[winner].items.Add(index);
-
-                if (original[index] == -1)
-                {
-                    original[index] = winner;
-                }
-
-            }
-            else
-            {
-                int winner = backup[random.gen.Next(0, backup.Count)];
-
-                owners[index] = winner;
-                players[winner].items.Add(index);
-
-                if (original[index] == -1)
-                {
-                    original[index] = winner;
-                }
-
-            }
+            TradeRound.Run(this);
         }
 
         public void Movement(int roll, bool isDouble)
@@ -973,7 +774,7 @@ namespace MONOPOLY
                 {
                     if (players[turn].funds < COSTS[index])
                     {
-                        Auction(index);
+                        AuctionRound.Run(this, index);
                     }
                     else
                     {
@@ -994,7 +795,7 @@ namespace MONOPOLY
                 }
                 else if (decision == Player.EBuyDecision.AUCTION)
                 {
-                    Auction(index);
+                    AuctionRound.Run(this, index);
                 }
             }
             else if (owner == turn)
@@ -1047,7 +848,7 @@ namespace MONOPOLY
                 {
                     if (players[turn].funds < COSTS[index])
                     {
-                        Auction(index);
+                        AuctionRound.Run(this, index);
                     }
                     else
                     {
@@ -1066,7 +867,7 @@ namespace MONOPOLY
                 }
                 else if (decision == Player.EBuyDecision.AUCTION)
                 {
-                    Auction(index);
+                    AuctionRound.Run(this, index);
                 }
             }
             else if (owner == turn)
