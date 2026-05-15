@@ -6,6 +6,27 @@ continue to load as before across all changes below.
 
 ---
 
+## Rule fix: no building on mortgaged sets, no mortgaging with houses still on the property
+
+Two related rulebook constraints that the simulator wasn't enforcing:
+
+- **Building.** You can't put a house on a property if any property in
+  the same color group is mortgaged. The simulator previously let the
+  policy build anyway. Now the build loop skips any set that has a
+  mortgaged member.
+- **Mortgaging.** You can't mortgage a property that still has houses on
+  it; you must sell the houses first. The simulator was silently allowing
+  it, leaving houses sitting on a "mortgaged" tile (which earned no rent
+  but was visible in the network's input). Now `Mortgage(index)` refuses
+  to flip the mortgage flag when houses[index] > 0.
+
+Trained networks that learned to mortgage-with-houses-up as a cash trick
+will lose that option. Same goes for trained networks that built on top
+of partially-mortgaged sets. Most policies probably didn't depend on
+either of these in any reliable way.
+
+---
+
 ## Rule fix: corrected Park Place cost and Marvin Gardens base rent
 
 Two number typos in the data tables:

@@ -411,6 +411,19 @@ namespace MONOPOLY
 
             for (int j = 0; j < setCount; j++)
             {
+                // Rule: cannot build on a color group with any mortgaged
+                // property in it.
+                int s = sets[j];
+                bool anyMortgaged = mortgaged[SETS[s, 0]] || mortgaged[SETS[s, 1]];
+                if (s != 0 && s != 7)
+                {
+                    anyMortgaged = anyMortgaged || mortgaged[SETS[s, 2]];
+                }
+                if (anyMortgaged)
+                {
+                    continue;
+                }
+
                 int maxHouse = 10;
                 int houseTotal = houses[SETS[sets[j], 0]] + houses[SETS[sets[j], 1]];
 
@@ -673,6 +686,15 @@ namespace MONOPOLY
 
         public void Mortgage(int index)
         {
+            // Rule: a property must have no houses on it (or anywhere in its
+            // color group, for that matter) before it can be mortgaged. The
+            // policy is expected to sell houses first; if it asks to mortgage
+            // anyway, refuse silently.
+            if (houses[index] > 0)
+            {
+                return;
+            }
+
             mortgaged[index] = true;
 
             players[owners[index]].funds += COSTS[index] / 2;
