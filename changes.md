@@ -6,6 +6,19 @@ continue to load as before across all changes below.
 
 ---
 
+## Defensive fix: "Go Back 3 Spaces" card no longer relies on tile layout
+
+The Chance card "Go Back 3 Spaces" was subtracting 3 from the player's
+position with no wrap-around. The simulator was getting away with it
+because all three Chance tiles sit at positions 7, 22, and 36 — every
+one of them is at least 3 spaces past GO, so going back 3 lands on a
+valid tile. If the tile layout were ever edited, this would silently
+produce a negative position and crash the next array lookup.
+
+Added a wrap-around guard. Behavior unchanged with the current layout.
+
+---
+
 ## Rule fix: "Advance to nearest Utility" Chance card now rolls fresh dice
 
 The Chance card "Advance to the nearest Utility — throw the dice and

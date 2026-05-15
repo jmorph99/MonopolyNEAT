@@ -63,6 +63,13 @@ namespace MONOPOLY
         {
             Player p = board.players[playerIdx];
             p.position -= 3;
+            // Defensive wrap: currently every Chance tile is at index >= 3
+            // so this is a no-op, but the guard removes a latent fragility
+            // if the tile layout ever changes.
+            if (p.position < 0)
+            {
+                p.position += Board.BOARD_LENGTH;
+            }
 
             board.ActivateTile();
         }
