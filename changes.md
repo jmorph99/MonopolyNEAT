@@ -6,6 +6,33 @@ continue to load as before across all changes below.
 
 ---
 
+## Foundation for non-NEAT training methods
+
+Up to now the simulator only knew about one kind of "brain": a NEAT
+phenotype. That worked, but `models.md` describes four other training
+methods (Evolution Strategies, PPO, Rainbow DQN, AlphaZero) — all of
+which use a plain fixed-shape neural net instead of an evolved one. So
+the game side has to be told "any kind of network is fine here," not
+"NEAT only."
+
+Two pieces were added:
+
+- An `IEvaluator` seam — the only thing `NeuralPolicy` (the brain-to-
+  game adapter) now requires of a network is "give me 9 numbers when I
+  give you 127." NEAT phenotypes still slot in through a thin wrapper;
+  new network types can plug in the same way without touching any game
+  code.
+- A standard `MLP` class — a regular 127 → 64 → 64 → 9 feed-forward
+  network whose weights live in one flat array. This is the shape the
+  evolution-strategies and gradient-based methods want, and it sits
+  next to the NEAT phenotype as a peer implementation of `IEvaluator`.
+
+No behavioural change yet — existing trained NEAT populations still
+play through `NeuralPolicy` exactly as before. This commit is just the
+plumbing the upcoming training-method commits need to plug into.
+
+---
+
 ## Rule fix: the bank only has 32 houses and 12 hotels
 
 Real Monopoly ships exactly 32 little green houses and 12 red hotels.

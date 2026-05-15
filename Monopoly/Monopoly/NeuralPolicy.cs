@@ -2,20 +2,29 @@ using System;
 
 namespace MONOPOLY
 {
-    // NeuralPolicy is the IPolicy adapter for a NEAT.Phenotype. For each
-    // decision it builds the network's 127-float input via Projection.Project,
-    // propagates the network, and thresholds the outputs into the discrete
-    // decisions Board asks for. Output mapping is fixed:
+    // NeuralPolicy is the IPolicy adapter for any IEvaluator (NEAT phenotype,
+    // fixed-topology MLP, ONNX-backed net, ...). For each decision it builds
+    // the network's 127-float input via Projection.Project, propagates the
+    // network, and thresholds the outputs into the discrete decisions Board
+    // asks for. Output mapping is fixed:
     //   Y[0] buy        Y[1] jail (3-way)   Y[2] mortgage
     //   Y[3] advance    Y[4] auction bid    Y[5] build house
     //   Y[6] sell house Y[7] offer trade    Y[8] accept trade
     public class NeuralPolicy : IPolicy
     {
-        public NEAT.Phenotype network;
+        public IEvaluator network;
 
-        public NeuralPolicy(NEAT.Phenotype net)
+        public NeuralPolicy(IEvaluator net)
         {
             network = net;
+        }
+
+        // Back-compat constructor: callers that still hand in a NEAT.Phenotype
+        // directly get auto-wrapped. Lets the NEAT trainer keep its existing
+        // call sites unchanged.
+        public NeuralPolicy(NEAT.Phenotype net)
+        {
+            network = new PhenotypeEvaluator(net);
         }
 
         public Player.EBuyDecision DecideBuy(Board board, int playerIdx, int tileIdx)
