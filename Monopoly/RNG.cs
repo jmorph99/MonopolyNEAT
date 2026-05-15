@@ -21,9 +21,9 @@ public class RNG
         }
     }
 
-    public List<MONOPOLY.Board.CardEntry> Shuffle(List<MONOPOLY.Board.CardEntry> cards)
+    public List<MONOPOLY.Card> Shuffle(List<MONOPOLY.Card> cards)
     {
-        List<MONOPOLY.Board.CardEntry> shuffle = new List<MONOPOLY.Board.CardEntry>();
+        List<MONOPOLY.Card> shuffle = new List<MONOPOLY.Card>();
 
         for (int i = 0; i < cards.Count;)
         {

@@ -35,34 +35,6 @@ namespace MONOPOLY
             JAIL,
         }
 
-        public enum ECard
-        {
-            ADVANCE,
-            RAILROAD2,
-            UTILITY10,
-            REWARD,
-            CARD,
-            BACK3,
-            JAIL,
-            REPAIRS,
-            STREET,
-            FINE,
-            CHAIRMAN,
-            BIRTHDAY,
-        }
-
-        public class CardEntry
-        {
-            public ECard card;
-            public int val;
-
-            public CardEntry(ECard c, int v)
-            {
-                card = c;
-                val = v;
-            }
-        }
-
         //constants
         //--------------------
         public static int PLAYER_COUNT = 4;
@@ -155,9 +127,9 @@ namespace MONOPOLY
 
         //card stacks
         //--------------------
-        public List<CardEntry> chance;
-        public List<CardEntry> chest;
-        //--------------------  
+        public List<Card> chance;
+        public List<Card> chest;
+        //--------------------
 
         public Board(NetworkAdapter _adapter, IPolicy[] _policies)
         {
@@ -177,50 +149,8 @@ namespace MONOPOLY
 
             remaining = PLAYER_COUNT;
 
-            chance = new List<CardEntry>();
-            chest = new List<CardEntry>();
-
-            //chance
-            //--------------------
-            chance.Add(new CardEntry(ECard.ADVANCE, 39));
-            chance.Add(new CardEntry(ECard.ADVANCE, 0));
-            chance.Add(new CardEntry(ECard.ADVANCE, 24));
-            chance.Add(new CardEntry(ECard.ADVANCE, 11));
-            chance.Add(new CardEntry(ECard.RAILROAD2, 0));
-            chance.Add(new CardEntry(ECard.RAILROAD2, 0));
-            chance.Add(new CardEntry(ECard.UTILITY10, 0));
-            chance.Add(new CardEntry(ECard.REWARD, 50));
-            chance.Add(new CardEntry(ECard.CARD, 0));
-            chance.Add(new CardEntry(ECard.BACK3, 0));
-            chance.Add(new CardEntry(ECard.JAIL, 0));
-            chance.Add(new CardEntry(ECard.REPAIRS, 0));
-            chance.Add(new CardEntry(ECard.FINE, 15));
-            chance.Add(new CardEntry(ECard.ADVANCE, 5));
-            chance.Add(new CardEntry(ECard.CHAIRMAN, 0));
-            chance.Add(new CardEntry(ECard.REWARD, 150));
-            chance = random.Shuffle(chance);
-            //--------------------
-
-            //chest
-            //--------------------
-            chest.Add(new CardEntry(ECard.ADVANCE, 0));
-            chest.Add(new CardEntry(ECard.REWARD, 200));
-            chest.Add(new CardEntry(ECard.FINE, 50));
-            chest.Add(new CardEntry(ECard.REWARD, 50));
-            chest.Add(new CardEntry(ECard.CARD, 0));
-            chest.Add(new CardEntry(ECard.JAIL, 0));
-            chest.Add(new CardEntry(ECard.REWARD, 100));
-            chest.Add(new CardEntry(ECard.REWARD, 20));
-            chest.Add(new CardEntry(ECard.BIRTHDAY, 0));
-            chest.Add(new CardEntry(ECard.REWARD, 100));
-            chest.Add(new CardEntry(ECard.FINE, 100));
-            chest.Add(new CardEntry(ECard.FINE, 50));
-            chest.Add(new CardEntry(ECard.FINE, 25));
-            chest.Add(new CardEntry(ECard.STREET, 0));
-            chest.Add(new CardEntry(ECard.REWARD, 10));
-            chest.Add(new CardEntry(ECard.REWARD, 100));
-            chest = random.Shuffle(chest);
-            //--------------------
+            chance = random.Shuffle(Decks.NewChance());
+            chest = random.Shuffle(Decks.NewChest());
         }
 
         public EOutcome Step()
@@ -1236,181 +1166,18 @@ namespace MONOPOLY
 
         public void DrawChance()
         {
-            CardEntry card = chance[0];
+            Card card = chance[0];
             chance.RemoveAt(0);
             chance.Add(card);
-
-            if (card.card == ECard.ADVANCE)
-            {
-                if (players[turn].position > card.val)
-                {
-                    players[turn].funds += GO_BONUS;
-                    adapter.SetMoney(turn, players[turn].funds);
-                }
-
-                players[turn].position = card.val;
-                adapter.SetPosition(turn, players[turn].position);
-
-                ActivateTile();
-            }
-            else if (card.card == ECard.REWARD)
-            {
-                players[turn].funds += card.val;
-                adapter.SetMoney(turn, players[turn].funds);
-            }
-            else if (card.card == ECard.FINE)
-            {
-                Payment(turn, card.val);
-            }
-            else if (card.card == ECard.BACK3)
-            {
-                players[turn].position -= 3;
-                adapter.SetPosition(turn, players[turn].position);
-
-                ActivateTile();
-            }
-            else if (card.card == ECard.CARD)
-            {
-                players[turn].card++;
-                adapter.SetCard(turn, players[turn].card);
-            }
-            else if (card.card == ECard.JAIL)
-            {
-                players[turn].position = JAIL_INDEX;
-                players[turn].doub = 0;
-                players[turn].state = Player.EState.JAIL;
-
-                adapter.SetPosition(turn, players[turn].position);
-                adapter.SetJail(turn, 1);
-            }
-            else if (card.card == ECard.RAILROAD2)
-            {
-                AdvanceToTrain2();
-            }
-            else if (card.card == ECard.UTILITY10)
-            {
-                AdvanceToUtility10();
-            }
-            else if (card.card == ECard.CHAIRMAN)
-            {
-                for (int i = 0; i < PLAYER_COUNT; i++)
-                {
-                    if (i == turn)
-                    {
-                        continue;
-                    }
-
-                    //only pay active players
-                    if (players[i].state != Player.EState.RETIRED)
-                    {
-                        PaymentToPlayer(turn, i, 50);
-                    }
-                }
-            }
-            else if (card.card == ECard.REPAIRS)
-            {
-                int houseCount = 0;
-                int hotelCount = 0;
-                int itemCount = players[turn].items.Count;
-
-                for (int i = 0; i < itemCount; i++)
-                {
-                    int index = players[turn].items[i];
-
-                    if (houses[index] <= 4)
-                    {
-                        houseCount += houses[index];
-                    }
-                    else
-                    {
-                        hotelCount++;
-                    }    
-                }
-
-                Payment(turn, houseCount * 25 + hotelCount * 100);
-            }
+            card.Apply(this, turn);
         }
 
         public void DrawChest()
         {
-            CardEntry card = chest[0];
+            Card card = chest[0];
             chest.RemoveAt(0);
             chest.Add(card);
-
-            if (card.card == ECard.ADVANCE)
-            {
-                if (players[turn].position > card.val)
-                {
-                    players[turn].funds += GO_BONUS;
-                    adapter.SetMoney(turn, players[turn].funds);
-                }
-
-                players[turn].position = card.val;
-                adapter.SetPosition(turn, players[turn].position);
-
-                ActivateTile();
-            }
-            else if (card.card == ECard.REWARD)
-            {
-                players[turn].funds += card.val;
-                adapter.SetMoney(turn, players[turn].funds);
-            }
-            else if (card.card == ECard.FINE)
-            {
-                Payment(turn, card.val);
-            }
-            else if (card.card == ECard.CARD)
-            {
-                players[turn].card++;
-                adapter.SetCard(turn, players[turn].card);
-            }
-            else if (card.card == ECard.JAIL)
-            {
-                players[turn].position = JAIL_INDEX;
-                players[turn].doub = 0;
-                players[turn].state = Player.EState.JAIL;
-
-                adapter.SetPosition(turn, players[turn].position);
-                adapter.SetJail(turn, 1);
-            }
-            else if (card.card == ECard.BIRTHDAY)
-            {
-                for (int i = 0; i < PLAYER_COUNT; i++)
-                {
-                    if (i == turn)
-                    {
-                        continue;
-                    }
-
-                    //only pay active players
-                    if (players[i].state != Player.EState.RETIRED)
-                    {
-                        PaymentToPlayer(i, turn, 10);
-                    }
-                }
-            }
-            else if (card.card == ECard.STREET)
-            {
-                int houseCount = 0;
-                int hotelCount = 0;
-                int itemCount = players[turn].items.Count;
-
-                for (int i = 0; i < itemCount; i++)
-                {
-                    int index = players[turn].items[i];
-
-                    if (houses[index] <= 4)
-                    {
-                        houseCount += houses[index];
-                    }
-                    else
-                    {
-                        hotelCount++;
-                    }
-                }
-
-                Payment(turn, houseCount * 40 + hotelCount * 115);
-            }
+            card.Apply(this, turn);
         }
 
         public void AdvanceToTrain2()

@@ -6,6 +6,25 @@ continue to load as before across all changes below.
 
 ---
 
+## Chance and Community Chest cards now live in their own files
+
+Each Chance / Community Chest card used to be a generic "card type + number"
+pair, with the actual effects of every card buried in two huge `if/else`
+blocks inside the board file. Five effect types — collect money, pay money,
+advance to a space, go to jail, get-out-of-jail-free — appeared in *both*
+blocks with subtly different copies of the same logic, which is the kind of
+duplication that drifts over time.
+
+Each card is now its own small class with an `Apply` method that says what
+the card does. Drawing a card is one line: rotate the top of the deck and
+call its `Apply`. The deck contents are listed in a single readable place
+(`Cards.cs`). Card effects, deck contents, and the cards' presence in each
+deck are now obvious from one file each.
+
+No rule changes. Same 16 cards in each deck, same effects, same shuffle.
+
+---
+
 ## Separated a player's game state from how they make decisions
 
 A "player" in the code used to mean two different things stitched together:
