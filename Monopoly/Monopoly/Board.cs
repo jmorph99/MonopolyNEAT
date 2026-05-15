@@ -938,7 +938,12 @@ namespace MONOPOLY
             else if (!mortgaged[index])
             {
                 //payment utility
-                int fine = 10 * last_roll;
+                // Rule: "Throw the dice and pay the owner 10 times the
+                // amount shown" — a fresh roll, not the original roll that
+                // led the player onto the Chance tile.
+                int d1 = random.gen.Next(1, 7);
+                int d2 = random.gen.Next(1, 7);
+                int fine = 10 * (d1 + d2);
 
                 PaymentToPlayer(turn, owner, fine);
             }

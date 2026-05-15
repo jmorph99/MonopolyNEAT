@@ -6,6 +6,20 @@ continue to load as before across all changes below.
 
 ---
 
+## Rule fix: "Advance to nearest Utility" Chance card now rolls fresh dice
+
+The Chance card "Advance to the nearest Utility — throw the dice and
+pay the owner ten times the amount thrown" was paying based on the
+**original** roll that brought the player onto the Chance tile in the
+first place. The card explicitly says to roll again.
+
+Fixed: when the card sends the player to an owned, non-mortgaged
+utility, two fresh dice are rolled and the fine is 10× their sum. The
+"Advance to the nearest Railroad" card was already correct (it pays
+twice the normal train rent, not roll-dependent).
+
+---
+
 ## Rule fix: properties go to auction when a player goes bankrupt to the bank
 
 When a player went bankrupt owing money to the bank (a tax tile, a Chance
