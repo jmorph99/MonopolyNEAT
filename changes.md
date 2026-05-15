@@ -6,6 +6,49 @@ continue to load as before across all changes below.
 
 ---
 
+## PSRO (Policy-Space Response Oracles) league training
+
+The first training method that explicitly tackles NEAT's biggest
+failure mode: rock-paper-scissors cycles in self-play. With pure
+self-play, generation N+5 can lose to generation N because the
+training has drifted into a region of strategy space the older
+network happens to counter.
+
+PSRO fixes this by keeping a **league** of frozen past policies and
+mixing them according to a Nash-equilibrium-style weighting. The new
+policy isn't training against itself — it's training against a
+weighted sample from the league.
+
+Each generation:
+
+1. Sample ES-style candidates around the current policy.
+2. Pick three opponents for each candidate by drawing from the league
+   under the meta-strategy distribution.
+3. ES update on the current policy.
+4. Every 5 generations: freeze the current policy into the league,
+   re-estimate the league's win-rate matrix by playing each member
+   against each other (a few dozen games per cell), and recompute
+   the meta-strategy using fictitious play.
+
+4-player wrinkle: the meta-game uses the "row vs three column-clones"
+reduction — each match-up cell tracks "what fraction of games does
+player i win when the table is {i, j, j, j}." That turns the
+4-player non-zero-sum environment into a 2-player symmetric matrix
+game where Nash exists and fictitious play converges.
+
+Run it with:
+
+```
+dotnet run --project Monopoly -- psro monopoly_psro.txt 1000
+```
+
+Smoke-tested: one Step produced mean fitness 2.66/32, league size 1.
+Resume from checkpoint produced mean 5.84/32 — gradient is flowing.
+The freeze cycle is exercised every 5 generations; the league file
+grows by ~13K numbers per frozen member (the parameter vector).
+
+---
+
 ## sep-CMA-ES training
 
 A more sophisticated cousin of OpenAI-ES. CMA-ES ("Covariance Matrix
