@@ -65,7 +65,7 @@ namespace MONOPOLY
         { 18, 90, 250, 700, 875, 1050 },
         { 20, 100, 300, 750, 925, 1100 },
         { 22, 110, 330, 800, 975, 1150 },
-        { 22, 120, 360, 850, 1025, 1200 },
+        { 24, 120, 360, 850, 1025, 1200 },
         { 26, 130, 390, 900, 1100, 1275 },
         { 28, 150, 450, 1000, 1200, 1400 },
         { 35, 175, 500, 1100, 1300, 1500 },
@@ -85,7 +85,7 @@ namespace MONOPOLY
          ETile.PROPERTY, ETile.CHANCE, ETile.PROPERTY, ETile.PROPERTY, ETile.TRAIN, ETile.PROPERTY, ETile.PROPERTY, ETile.UTILITY, ETile.PROPERTY, ETile.JAIL,
          ETile.PROPERTY, ETile.PROPERTY, ETile.CHEST, ETile.PROPERTY, ETile.TRAIN, ETile.CHANCE, ETile.PROPERTY, ETile.TAX, ETile.PROPERTY};
 
-        public static int[] COSTS = new int[40] { 0, 60, 0, 60, 200, 200, 100, 0, 100, 120, 0, 140, 150, 140, 160, 200, 180, 0, 180, 200, 0, 220, 0, 220, 240, 200, 260, 260, 150, 280, 0, 300, 300, 0, 320, 200, 0, 250, 100, 400 };
+        public static int[] COSTS = new int[40] { 0, 60, 0, 60, 200, 200, 100, 0, 100, 120, 0, 140, 150, 140, 160, 200, 180, 0, 180, 200, 0, 220, 0, 220, 240, 200, 260, 260, 150, 280, 0, 300, 300, 0, 320, 200, 0, 350, 100, 400 };
         public static int[] BUILD = new int[16] { 50, 50, 50, 50, 100, 100, 100, 100, 150, 150, 150, 150, 200, 200, 200, 200 };
 
         public static int[,] SETS = new int[8, 3]

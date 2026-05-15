@@ -6,6 +6,20 @@ continue to load as before across all changes below.
 
 ---
 
+## Rule fix: corrected Park Place cost and Marvin Gardens base rent
+
+Two number typos in the data tables:
+
+- **Park Place** cost was $250; the real game's is **$350**.
+- **Marvin Gardens** base rent (no houses) was $22; should be **$24**.
+
+The other rents on Marvin Gardens (with houses / hotel) and Park Place's
+rent ladder were already correct. Networks trained against the old
+numbers may slightly mis-value Park Place (it was cheap and they bought
+it eagerly) — expect small drift.
+
+---
+
 ## Rule fix: owning a complete color set without houses doubles rent
 
 If you own all three of a color group (or both of brown/dark blue) and
