@@ -6,6 +6,36 @@ continue to load as before across all changes below.
 
 ---
 
+## Pluggable trainers and CLI selection
+
+Up to now there was exactly one training algorithm: NEAT. The driver
+(`Program.cs`) ran it directly with no way to choose anything else.
+
+With non-NEAT methods coming next, the driver now picks a trainer by
+name on the command line:
+
+```
+Monopoly neat                                # the original loop, default
+Monopoly es     monopoly_es.txt    1000      # Evolution Strategies (next commit)
+Monopoly cmaes  monopoly_cmaes.txt 1000      # CMA-ES (later commit)
+Monopoly psro   monopoly_psro.txt  1000      # PSRO league (later commit)
+```
+
+Each trainer brings its own state and its own save-file format. The
+existing NEAT checkpoints (`monopoly_population *.txt`) still load
+exactly as before — the NEAT path is now a thin wrapper around the
+unchanged Population.Save / Load.
+
+A new `Arena` helper extracts the "play one game with four brains"
+primitive that every trainer needs, so the new methods don't have to
+duplicate the threading / win-detection code from the NEAT tournament.
+
+The other trainer names (es, cmaes, psro, ppo, dqn) are wired up but
+their implementations are stubs that throw `NotImplementedException`
+until the matching commits land — the next several commits fill them in.
+
+---
+
 ## Foundation for non-NEAT training methods
 
 Up to now the simulator only knew about one kind of "brain": a NEAT
