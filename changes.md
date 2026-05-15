@@ -6,6 +6,27 @@ continue to load as before across all changes below.
 
 ---
 
+## Each board space owns its own "what happens when you land here" rule
+
+The 40 board spaces used to share one giant 180-line block that walked
+through every space type with nested `if` statements: properties had buy /
+own / pay-rent paths, trains had their own with a slightly different
+shape, utilities yet another with a different rent formula, plus tax,
+Chance, Community Chest, and Go-To-Jail. The result was a single function
+that nobody could safely change without re-reading the whole thing.
+
+Each space is now its own small class — `PropertyTile`, `TrainTile`,
+`UtilityTile`, `TaxTile`, `ChanceTile`, `ChestTile`, `GoToJailTile`, plus
+no-op spaces like GO and Free Parking. Landing on a space is one call into
+that tile's `Activate` method. Adjusting a rent rule or a tax rate now
+touches one class, not a buried branch.
+
+Behavior is preserved verbatim, including a small quirk specific to
+trains that already existed in the original code (noted as a comment in
+the new file).
+
+---
+
 ## Chance and Community Chest cards now live in their own files
 
 Each Chance / Community Chest card used to be a generic "card type + number"

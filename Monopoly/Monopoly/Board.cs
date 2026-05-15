@@ -131,6 +131,9 @@ namespace MONOPOLY
         public List<Card> chest;
         //--------------------
 
+        // tile table — built once per Board, owns its own rules
+        public Tile[] tiles;
+
         public Board(NetworkAdapter _adapter, IPolicy[] _policies)
         {
             players = new Player[PLAYER_COUNT];
@@ -151,6 +154,8 @@ namespace MONOPOLY
 
             chance = random.Shuffle(Decks.NewChance());
             chest = random.Shuffle(Decks.NewChest());
+
+            tiles = TileFactory.BuildTiles();
         }
 
         public EOutcome Step()
@@ -711,189 +716,7 @@ namespace MONOPOLY
         public void ActivateTile()
         {
             int index = players[turn].position;
-
-            ETile tile = TYPES[index];
-
-            if (tile == ETile.PROPERTY)
-            {
-                int owner = Owner(index);
-
-                if (owner == BANK_INDEX)
-                {
-                    adapter.SetTurn(turn);
-                    adapter.SetSelection(index);
-                    Player.EBuyDecision decision = policies[turn].DecideBuy(players[turn], index);
-
-                    if (decision == Player.EBuyDecision.BUY)
-                    {
-                        if (players[turn].funds < COSTS[index])
-                        {
-                            Auction(index);
-                        }
-                        else
-                        {
-                            Payment(turn, COSTS[index]);
-
-                            owners[index] = turn;
-
-                            if (original[index] == -1)
-                            {
-                                original[index] = turn;
-                            }
-
-                            players[turn].items.Add(index);
-
-                            adapter.SetOwner(index, owner);
-                        }
-                        
-                    }
-                    else if (decision == Player.EBuyDecision.AUCTION)
-                    {
-                        Auction(index);
-                    }
-                }
-                else if (owner == turn)
-                {
-                    //do nothing
-                }
-                else if (!mortgaged[index])
-                {
-                    PaymentToPlayer(turn, owner, PROPERTY_PENALTIES[property[index], houses[index]]);
-                }
-            }
-            else if (tile == ETile.TRAIN)
-            {
-                int owner = Owner(index);
-
-                if (owner == BANK_INDEX)
-                {
-                    adapter.SetTurn(turn);
-                    adapter.SetSelection(index);
-                    Player.EBuyDecision decision = policies[turn].DecideBuy(players[turn], index);
-
-                    if (decision == Player.EBuyDecision.BUY)
-                    {
-                        if (players[turn].funds < COSTS[index])
-                        {
-                            Auction(index);
-                        }
-                        else
-                        {
-                            Payment(turn, COSTS[index]);
-
-                            owners[index] = turn;
-
-                            if (original[index] == -1)
-                            {
-                                original[index] = turn;
-                            }
-
-                            players[turn].items.Add(index);
-
-                            adapter.SetOwner(index, turn);
-                        }
-                        
-                    }
-                    else if (owner == turn)
-                    {
-                        //do nothing
-                    }
-                    else if (decision == Player.EBuyDecision.AUCTION)
-                    {
-                        Auction(index);
-                    }
-                }
-                else if (!mortgaged[index])
-                {
-                    //payment train
-                    int trains = CountTrains(owner);
-
-                    if (trains >= 1 && trains <= 4)
-                    {
-                        int fine = TRAIN_PENALTIES[trains - 1];
-                        PaymentToPlayer(turn, owner, fine);
-                    }
-                    
-                }
-            }
-            else if (tile == ETile.UTILITY)
-            {
-                int owner = Owner(index);
-
-                if (owner == BANK_INDEX)
-                {
-                    adapter.SetTurn(turn);
-
-                    adapter.SetSelectionState(index, 1);
-
-                    Player.EBuyDecision decision = policies[turn].DecideBuy(players[turn], index);
-
-                    adapter.SetSelectionState(index, 0);
-
-                    if (decision == Player.EBuyDecision.BUY)
-                    {
-                        if (players[turn].funds < COSTS[index])
-                        {
-                            Auction(index);
-                        }
-                        else
-                        {
-                            Payment(turn, COSTS[index]);
-
-                            owners[index] = turn;
-
-                            if (original[index] == -1)
-                            {
-                                original[index] = turn;
-                            }
-
-                            players[turn].items.Add(index);
-
-                            adapter.SetOwner(index, turn);
-                        }
-                            
-                    }
-                    else if (decision == Player.EBuyDecision.AUCTION)
-                    {
-                        Auction(index);
-                    }
-                }
-                else if (owner == turn)
-                {
-                    //do nothing
-                }
-                else if (!mortgaged[index])
-                {
-                    //payment utility
-                    int utilities = CountUtilities(owner);
-
-                    if (utilities >= 1 && utilities <= 2)
-                    {
-                        int fine = UTILITY_PENALTIES[utilities - 1] * last_roll;
-                        PaymentToPlayer(turn, owner, fine);
-                    }    
-                }
-            }
-            else if (tile == ETile.TAX)
-            {
-                Payment(turn, COSTS[index]);
-            }
-            else if (tile == ETile.CHANCE)
-            {
-                DrawChance();
-            }
-            else if (tile == ETile.CHEST)
-            {
-                DrawChest();
-            }
-            else if (tile == ETile.JAIL)
-            {
-                players[turn].position = JAIL_INDEX;
-                players[turn].doub = 0;
-                players[turn].state = Player.EState.JAIL;
-
-                adapter.SetJail(turn, 1);
-            }
+            tiles[index].Activate(this, turn);
         }
 
         public void Payment(int owner, int fine)
