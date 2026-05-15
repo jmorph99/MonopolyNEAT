@@ -6,6 +6,44 @@ continue to load as before across all changes below.
 
 ---
 
+## OpenAI-ES (Evolution Strategies) training
+
+The first new training method: OpenAI-style Evolution Strategies.
+Conceptually, it's like a much simpler NEAT — but instead of evolving
+the network's *shape*, it picks one fixed shape and only evolves the
+*weights*.
+
+How it works each generation:
+
+1. Take a current "best-guess" weight vector.
+2. Make 64 tiny random tweaks of it (32 pairs of tweaks: +noise and
+   −noise, so the noise cancels out cleanly).
+3. Play 64 games per tweak, against three randomly-chosen rivals from
+   the same generation. Count wins.
+4. Rank the tweaks by win count, then nudge the current weight vector
+   toward the tweaks that did well and away from the ones that did
+   badly. The size of the nudge per parameter is proportional to how
+   much that tweak helped or hurt.
+
+Compared to NEAT, ES uses far less compute per generation (about 1/100
+the games), is much smoother (no big topological jumps), and tends to
+converge more reliably on a fixed-shape problem. The trade-off is that
+it can't *discover* a new architecture — the user picks the network
+shape up front (default: 127 → 64 → 64 → 9).
+
+Run it with:
+
+```
+dotnet run --project Monopoly -- es monopoly_es.txt 1000
+```
+
+Smoke-tested: one iteration on a fresh checkpoint ran 4096 games in
+about 25 seconds on this machine; a second iteration loaded the
+checkpoint cleanly and resumed. The on-disk format is plain text (one
+parameter per line), so checkpoints are easy to inspect and grep.
+
+---
+
 ## Pluggable trainers and CLI selection
 
 Up to now there was exactly one training algorithm: NEAT. The driver
