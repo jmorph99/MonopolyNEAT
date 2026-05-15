@@ -6,6 +6,31 @@ continue to load as before across all changes below.
 
 ---
 
+## Rule fix: the bank only has 32 houses and 12 hotels
+
+Real Monopoly ships exactly 32 little green houses and 12 red hotels.
+Once the bank runs out, no one can build until someone else sells back.
+Players who control the supply can deliberately starve opponents out of
+the hotel market — a real strategic lever.
+
+The simulator was pretending the bank had infinite resources: every
+build request was granted regardless of how many houses had already been
+placed. So networks could happily put hotels on every property they
+owned no matter what the rest of the table was doing.
+
+Fixed: each Board now has its own `houseSupply` (starts at 32) and
+`hotelSupply` (starts at 12). Building decrements them; selling and
+bankruptcy return them. If a build request exceeds available supply, the
+build loop stops early and the player pays only for what was actually
+built.
+
+The network input doesn't currently see the supply numbers, so trained
+networks may over-bid when the bank is dry; they just won't get the
+houses they asked for and won't be charged for them either. New training
+will get to learn the constraint.
+
+---
+
 ## Rule fix: Get Out of Jail Free cards are now real physical cards
 
 There are only two Get Out of Jail Free cards in the game — one in

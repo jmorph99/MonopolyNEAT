@@ -124,6 +124,16 @@ namespace MONOPOLY
 
         public int last_roll = 0;
 
+        // Per-Board bank supply. Real Monopoly ships 32 houses and 12 hotels;
+        // builds are refused once these run out. Hotels "consume" 1 hotel but
+        // return 4 houses to the bank (a hotel replaces 4 houses on a
+        // property). Selling reverses. The network doesn't currently see
+        // these counts, so the trained policies may try to overbuild during
+        // shortages — BuildHouses just refuses and they pay only for what
+        // actually got built.
+        public int houseSupply = 32;
+        public int hotelSupply = 12;
+
         //card stacks
         //--------------------
         public List<Card> chance;
@@ -413,8 +423,8 @@ namespace MONOPOLY
 
                 if (decision > 0)
                 {
-                    SellHouses(sets[j], decision);
-                    players[turn].funds += (int)(decision * BUILD[property[SETS[sets[j], 0]]] * 0.5f);
+                    int sold = SellHouses(sets[j], decision);
+                    players[turn].funds += (int)(sold * BUILD[property[SETS[sets[j], 0]]] * 0.5f);
                 }
             }
 
@@ -464,8 +474,8 @@ namespace MONOPOLY
 
                 if (decision > 0)
                 {
-                    BuildHouses(sets[j], decision);
-                    Payment(turn, decision * BUILD[property[SETS[sets[j], 0]]]);
+                    int built = BuildHouses(sets[j], decision);
+                    Payment(turn, built * BUILD[property[SETS[sets[j], 0]]]);
                 }
             }
 
@@ -533,9 +543,9 @@ namespace MONOPOLY
 
                     if (decision > 0)
                     {
-                        SellHouses(sets[j], decision);
+                        int sold = SellHouses(sets[j], decision);
 
-                        players[owner].funds += (int)(decision * BUILD[property[SETS[sets[j], 0]]] * 0.5f);
+                        players[owner].funds += (int)(sold * BUILD[property[SETS[sets[j], 0]]] * 0.5f);
                     }
                 }
             }
@@ -582,6 +592,7 @@ namespace MONOPOLY
                         int sell = (liquidated * BUILD[property[item]]) / 2;
                         housemoney += sell;
 
+                        ReturnHousesToBank(liquidated);
                         houses[item] = 0;
                     }
                 }
@@ -646,8 +657,8 @@ namespace MONOPOLY
 
                     if (decision > 0)
                     {
-                        SellHouses(sets[j], decision);
-                        players[owner].funds += (int)(decision * BUILD[property[SETS[sets[j], 0]]] * 0.5f);
+                        int sold = SellHouses(sets[j], decision);
+                        players[owner].funds += (int)(sold * BUILD[property[SETS[sets[j], 0]]] * 0.5f);
 
                     }
                 }
@@ -697,6 +708,7 @@ namespace MONOPOLY
                         int sell = (liquidated * BUILD[property[item]]) / 2;
                         housemoney += sell;
 
+                        ReturnHousesToBank(liquidated);
                         houses[item] = 0;
                     }
                 }
@@ -1015,7 +1027,10 @@ namespace MONOPOLY
             return sets.ToArray();
         }
 
-        public void BuildHouses(int set, int amount)
+        // Returns the number of houses/hotels actually built. If the bank's
+        // supply runs out mid-batch the loop stops early; the caller pays
+        // only for what was built.
+        public int BuildHouses(int set, int amount)
         {
             int last = 2;
 
@@ -1024,6 +1039,7 @@ namespace MONOPOLY
                 last = 1;
             }
 
+            int built = 0;
             for (int i = 0; i < amount; i++)
             {
                 //find smallest house number from back
@@ -1037,11 +1053,31 @@ namespace MONOPOLY
                     }
                 }
 
+                int curr = houses[SETS[set, bj]];
+                if (curr < 4)
+                {
+                    if (houseSupply <= 0) break;
+                    houseSupply--;
+                }
+                else // curr == 4: building hotel
+                {
+                    if (hotelSupply <= 0) break;
+                    hotelSupply--;
+                    // The 4 houses on this lot return to the bank's supply.
+                    houseSupply = System.Math.Min(houseSupply + 4, 32);
+                }
+
                 houses[SETS[set, bj]]++;
+                built++;
             }
+            return built;
         }
 
-        public void SellHouses(int set, int amount)
+        // Returns the number of houses/hotels actually sold. Hotels return
+        // 1 hotel and up to 4 houses to the bank's supply; the simulator
+        // doesn't model the rulebook's "if the bank lacks houses to make
+        // change, sell out completely" corner case.
+        public int SellHouses(int set, int amount)
         {
             int last = 2;
 
@@ -1050,6 +1086,7 @@ namespace MONOPOLY
                 last = 1;
             }
 
+            int sold = 0;
             for (int i = 0; i < amount; i++)
             {
                 //find smallest house number from back
@@ -1063,7 +1100,37 @@ namespace MONOPOLY
                     }
                 }
 
+                int curr = houses[SETS[set, bj]];
+                if (curr == 0) break;
+
+                if (curr == 5)
+                {
+                    hotelSupply = System.Math.Min(hotelSupply + 1, 12);
+                    houseSupply = System.Math.Min(houseSupply + 4, 32);
+                }
+                else
+                {
+                    houseSupply = System.Math.Min(houseSupply + 1, 32);
+                }
+
                 houses[SETS[set, bj]]--;
+                sold++;
+            }
+            return sold;
+        }
+
+        // Drop all houses on a property back to the bank's supply.
+        // Used by the two bankruptcy paths.
+        public void ReturnHousesToBank(int level)
+        {
+            if (level == 5)
+            {
+                hotelSupply = System.Math.Min(hotelSupply + 1, 12);
+                houseSupply = System.Math.Min(houseSupply + 4, 32);
+            }
+            else if (level >= 1)
+            {
+                houseSupply = System.Math.Min(houseSupply + level, 32);
             }
         }
     }
