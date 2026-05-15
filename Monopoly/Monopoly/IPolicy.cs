@@ -4,19 +4,21 @@ namespace MONOPOLY
     // between options. Implementations: ScriptedPolicy (hard-coded baseline),
     // NeuralPolicy (NEAT-evolved network).
     //
-    // `self` is the Player whose turn it is for the decision. Implementations
-    // that condition on game state read it from there or from external context
-    // they were given at construction (e.g. NetworkAdapter for NeuralPolicy).
+    // Each method receives the Board and the index of the player being asked.
+    // Implementations that need the network's view of state call
+    // Projection.Project(board, playerIdx, ...) to build their input vector.
+    // Implementations that don't need the network read fields from the Board
+    // directly.
     public interface IPolicy
     {
-        Player.EBuyDecision DecideBuy(Player self, int index);
-        Player.EJailDecision DecideJail(Player self);
-        Player.EDecision DecideMortgage(Player self, int index);
-        Player.EDecision DecideAdvance(Player self, int index);
-        int DecideAuctionBid(Player self, int index);
-        int DecideBuildHouse(Player self, int set);
-        int DecideSellHouse(Player self, int set);
-        Player.EDecision DecideOfferTrade(Player self);
-        Player.EDecision DecideAcceptTrade(Player self);
+        Player.EBuyDecision DecideBuy(Board board, int playerIdx, int tileIdx);
+        Player.EJailDecision DecideJail(Board board, int playerIdx);
+        Player.EDecision DecideMortgage(Board board, int playerIdx, int tileIdx);
+        Player.EDecision DecideAdvance(Board board, int playerIdx, int tileIdx);
+        int DecideAuctionBid(Board board, int playerIdx, int tileIdx);
+        int DecideBuildHouse(Board board, int playerIdx, int set);
+        int DecideSellHouse(Board board, int playerIdx, int set);
+        Player.EDecision DecideOfferTrade(Board board, int playerIdx, int[] giving, int[] receiving, int moneyBalance);
+        Player.EDecision DecideAcceptTrade(Board board, int playerIdx, int[] giving, int[] receiving, int moneyBalance);
     }
 }

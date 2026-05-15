@@ -26,11 +26,9 @@ namespace MONOPOLY
             if (p.position > target)
             {
                 p.funds += Board.GO_BONUS;
-                board.adapter.SetMoney(playerIdx, p.funds);
             }
 
             p.position = target;
-            board.adapter.SetPosition(playerIdx, p.position);
 
             board.ActivateTile();
         }
@@ -45,7 +43,6 @@ namespace MONOPOLY
         {
             Player p = board.players[playerIdx];
             p.funds += amount;
-            board.adapter.SetMoney(playerIdx, p.funds);
         }
     }
 
@@ -66,7 +63,6 @@ namespace MONOPOLY
         {
             Player p = board.players[playerIdx];
             p.position -= 3;
-            board.adapter.SetPosition(playerIdx, p.position);
 
             board.ActivateTile();
         }
@@ -78,7 +74,6 @@ namespace MONOPOLY
         {
             Player p = board.players[playerIdx];
             p.card++;
-            board.adapter.SetCard(playerIdx, p.card);
         }
     }
 
@@ -90,9 +85,6 @@ namespace MONOPOLY
             p.position = Board.JAIL_INDEX;
             p.doub = 0;
             p.state = Player.EState.JAIL;
-
-            board.adapter.SetPosition(playerIdx, p.position);
-            board.adapter.SetJail(playerIdx, 1);
         }
     }
 

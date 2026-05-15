@@ -163,8 +163,6 @@ namespace Monopoly
         {
             for (int game = 0; game < BATCH_SIZE; game++)
             {
-                NetworkAdapter adapter = new NetworkAdapter();
-
                 NEAT.Phenotype[] networks = new NEAT.Phenotype[]
                 {
                     instance.contestants[i],
@@ -178,10 +176,10 @@ namespace Monopoly
                 MONOPOLY.IPolicy[] policies = new MONOPOLY.IPolicy[4];
                 for (int p = 0; p < 4; p++)
                 {
-                    policies[p] = new MONOPOLY.NeuralPolicy(networks[p], adapter);
+                    policies[p] = new MONOPOLY.NeuralPolicy(networks[p]);
                 }
 
-                MONOPOLY.Board board = new MONOPOLY.Board(adapter, policies);
+                MONOPOLY.Board board = new MONOPOLY.Board(policies);
 
                 MONOPOLY.Board.EOutcome outcome = MONOPOLY.Board.EOutcome.ONGOING;
 

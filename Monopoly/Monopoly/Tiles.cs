@@ -58,7 +58,6 @@ namespace MONOPOLY
             p.position = Board.JAIL_INDEX;
             p.doub = 0;
             p.state = Player.EState.JAIL;
-            board.adapter.SetJail(playerIdx, 1);
         }
     }
 
@@ -72,9 +71,7 @@ namespace MONOPOLY
 
             if (owner == Board.BANK_INDEX)
             {
-                board.adapter.SetTurn(playerIdx);
-                board.adapter.SetSelection(index);
-                Player.EBuyDecision decision = board.policies[playerIdx].DecideBuy(board.players[playerIdx], index);
+                Player.EBuyDecision decision = board.policies[playerIdx].DecideBuy(board, playerIdx, index);
 
                 if (decision == Player.EBuyDecision.BUY)
                 {
@@ -91,7 +88,6 @@ namespace MONOPOLY
                         // Preserved verbatim: PROPERTY sets the owner with the
                         // pre-purchase `owner` (BANK_INDEX = -1) rather than
                         // playerIdx — see comment on Tile.
-                        board.adapter.SetOwner(index, owner);
                     }
                 }
                 else if (decision == Player.EBuyDecision.AUCTION)
@@ -121,9 +117,7 @@ namespace MONOPOLY
 
             if (owner == Board.BANK_INDEX)
             {
-                board.adapter.SetTurn(playerIdx);
-                board.adapter.SetSelection(index);
-                Player.EBuyDecision decision = board.policies[playerIdx].DecideBuy(board.players[playerIdx], index);
+                Player.EBuyDecision decision = board.policies[playerIdx].DecideBuy(board, playerIdx, index);
 
                 if (decision == Player.EBuyDecision.BUY)
                 {
@@ -137,7 +131,6 @@ namespace MONOPOLY
                         board.owners[index] = playerIdx;
                         if (board.original[index] == -1) board.original[index] = playerIdx;
                         board.players[playerIdx].items.Add(index);
-                        board.adapter.SetOwner(index, playerIdx);
                     }
                 }
                 else if (decision == Player.EBuyDecision.AUCTION)
@@ -169,10 +162,7 @@ namespace MONOPOLY
 
             if (owner == Board.BANK_INDEX)
             {
-                board.adapter.SetTurn(playerIdx);
-                board.adapter.SetSelectionState(index, 1);
-                Player.EBuyDecision decision = board.policies[playerIdx].DecideBuy(board.players[playerIdx], index);
-                board.adapter.SetSelectionState(index, 0);
+                Player.EBuyDecision decision = board.policies[playerIdx].DecideBuy(board, playerIdx, index);
 
                 if (decision == Player.EBuyDecision.BUY)
                 {
@@ -186,7 +176,6 @@ namespace MONOPOLY
                         board.owners[index] = playerIdx;
                         if (board.original[index] == -1) board.original[index] = playerIdx;
                         board.players[playerIdx].items.Add(index);
-                        board.adapter.SetOwner(index, playerIdx);
                     }
                 }
                 else if (decision == Player.EBuyDecision.AUCTION)

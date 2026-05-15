@@ -6,6 +6,47 @@ continue to load as before across all changes below.
 
 ---
 
+## Network input now computed fresh at each decision, not patched incrementally
+
+The neural network sees the game state as a 127-number vector that says
+things like "how much money does player 2 have," "is property 17
+mortgaged," "which property is being considered for purchase right now."
+The old code maintained this vector incrementally: every time something
+changed in the game (a payment, a position update, a mortgage flip), the
+code called a corresponding "set" method on a `NetworkAdapter` object.
+There were about a hundred of these calls scattered across the game
+logic. Forgetting one, or calling one with the wrong argument, silently
+corrupted the network's view of the world.
+
+That whole adapter has been replaced with one function — `Projection.Project`
+— that builds the 127-number vector from the current game state on
+demand, right before each decision. The game logic no longer manages a
+network-view buffer at all; it just changes the game state.
+
+**Heads-up on training:** this fixes a couple of small bugs in the old
+adapter that were silently shaping how trained networks read their input.
+Specifically:
+
+1. When a player bought a property, the network was told the property was
+   still unowned (the buyer's index was sent as -1 instead of their seat
+   number). Now it correctly says "owned by seat N."
+2. The "do you hold a get-out-of-jail-free card" bit was hard-stuck at 1
+   due to a typo. Now it reads 1 if you actually hold a card, 0 if not.
+3. Selection bits from a previous decision could leak into the next one
+   (e.g. flags set during a property buy were still active when the next
+   mortgage decision was asked). Now each decision sees a clean slate.
+
+The trained-network files load and play, and the layout of the 127-number
+vector is unchanged so the networks' weights still apply. But because the
+inputs they see are now slightly different (more correct) than the inputs
+they were trained against, the **trained networks may make slightly
+different choices on the same game state**. If you compare results to
+previous runs you might notice small drift; this is expected. New
+training generations will quickly re-optimize against the corrected
+inputs.
+
+---
+
 ## Each board space owns its own "what happens when you land here" rule
 
 The 40 board spaces used to share one giant 180-line block that walked
