@@ -6,6 +6,28 @@ continue to load as before across all changes below.
 
 ---
 
+## Rule fix: properties go to auction when a player goes bankrupt to the bank
+
+When a player went bankrupt owing money to the bank (a tax tile, a Chance
+fine, etc., rather than to another player), the simulator simply dropped
+all their properties into the bank's pile and left them there for the
+rest of the game. The rulebook says these properties go straight to
+auction — the bank wants the cash; the remaining players bid; the
+highest bidder takes it.
+
+Fixed: after the bankrupt player is retired, each of their former
+properties is auctioned in turn. The same auction code that runs when a
+landed-on tile is declined now runs here too. Mortgaged status carries
+into the auction unchanged (the simulator doesn't model the 10%
+unmortgage obligation either way).
+
+This is a real strategic shift: properties that previously sat
+permanently dead now flow back into circulation. Networks that learned
+to "bankrupt out" an opponent to lock those tiles away will have to
+rethink that line.
+
+---
+
 ## Rule fix: no building on mortgaged sets, no mortgaging with houses still on the property
 
 Two related rulebook constraints that the simulator wasn't enforcing:

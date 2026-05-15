@@ -554,12 +554,14 @@ namespace MONOPOLY
                 int regained = players[owner].funds - original;
 
                 int itemCount = players[owner].items.Count;
+                int[] toAuction = new int[itemCount];
 
                 int housemoney = 0;
 
                 for (int i = 0; i < itemCount; i++)
                 {
                     int item = players[owner].items[i];
+                    toAuction[i] = item;
                     owners[item] = BANK_INDEX;
 
                     if (houses[item] > 0)
@@ -574,9 +576,17 @@ namespace MONOPOLY
 
                 players[owner].items.Clear();
 
-                //give money to other 
+                //give money to other
                 players[owner].state = Player.EState.RETIRED;
                 remaining--;
+
+                // Rule: when a player goes bankrupt to the bank, the bank
+                // auctions each of their former properties immediately.
+                // Mortgaged status is preserved; the new owner inherits it.
+                for (int i = 0; i < toAuction.Length; i++)
+                {
+                    AuctionRound.Run(this, toAuction[i]);
+                }
             }
         }
 
