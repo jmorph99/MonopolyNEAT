@@ -6,6 +6,27 @@ continue to load as before across all changes below.
 
 ---
 
+## Rule fix: rolling doubles no longer carries over between turns
+
+In real Monopoly, "three doubles in a row" means three doubles **in the
+same turn sequence** — a single turn that keeps going because each roll
+was doubles. The simulator was counting doubles cumulatively across the
+**whole game**: every double you ever rolled was added to one counter,
+and you went to jail when that counter hit three regardless of when the
+doubles happened. A player could roll one double in turn 4, another in
+turn 9, a third in turn 17, and get jailed on a cold streak.
+
+Fixed. The counter resets at the end of each turn, so the rule now
+matches the rulebook: three doubles in *this* turn → jail; rolling a
+non-double ends your turn and clears the counter.
+
+This is the single biggest rule divergence in the codebase. Trained
+networks were quietly avoiding doubles even on their first roll of a
+turn (because their lifetime double counter mattered). They may
+re-adapt; expect some training churn.
+
+---
+
 ## Saving and loading the population now lives with the population code
 
 Reading and writing the `monopoly_population *.txt` files used to be one

@@ -286,6 +286,10 @@ namespace MONOPOLY
         {
             if (increment)
             {
+                // Doubles count resets when a player's turn ends; the
+                // three-doubles-in-a-row → jail rule applies within a single
+                // turn sequence, not across the whole game.
+                players[turn].doub = 0;
                 IncrementTurn();
 
                 int count = 0;
