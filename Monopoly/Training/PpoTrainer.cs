@@ -5,43 +5,43 @@ using System.Text;
 
 namespace TRAINING
 {
-    // PPO trainer for 4-player Monopoly self-play.
+    // PPO trainer for 4-player Monopoly self-play, wired to the TorchSharp
+    // backend for the gradient step.
     //
-    // Status: the data-collection half is fully implemented in pure C#:
-    //  - per-turn trajectory recording via TrajectoryCollector
-    //  - per-turn reward shaping (net-worth delta + terminal win)
-    //  - Generalized Advantage Estimation over each player's trajectory
-    //  - rollout batching ready for a gradient backend
+    // Pipeline per Step():
+    //   1. Collect ROLLOUT_GAMES self-play games where each seat uses a
+    //      RecordingPolicy that samples binary actions from Bernoulli(Y[dim])
+    //      and records (state, action_dim, action, prob, V(state)).
+    //   2. Compute GAE-smoothed advantages and bootstrapped returns over
+    //      each per-seat trajectory.
+    //   3. Hand the batch to TorchPpoBackend.Update — which copies the MLP
+    //      parameters into a torch module, runs the clipped objective with
+    //      Adam for PPO_EPOCHS passes, and copies the updated weights back.
     //
-    // The actual policy/value gradient step is *not* implemented in C#.
-    // The MLP class here is forward-only — no backprop. To complete PPO,
-    // wire one of:
-    //   - TorchSharp in-process: build a torch.nn.Module mirroring MLP,
-    //     pass our RolloutBatch through it, call backward() and step()
-    //     with the PPO clipped objective.
-    //   - Python sidecar: stream RolloutBatch over a socket / shared mem
-    //     to a Python PPO trainer; receive back updated weights and
-    //     reload them into this MLP for the next rollout cycle.
-    //
-    // The C# side never needs autograd; the network is small enough that
-    // a hand-written forward+manual-backward could replace TorchSharp,
-    // but the scope of that is comparable to writing a small DL framework
-    // from scratch and is best deferred.
+    // Action model: only the five binary decisions (buy, mortgage, advance,
+    // offer trade, accept trade) are learned via policy gradient. The
+    // 3-way jail decision and the continuous outputs (auction bid, build /
+    // sell counts) are taken deterministically through the actor MLP but
+    // don't contribute to the policy loss. They still inherit weight
+    // updates from the binary decisions because the trunk is shared.
     public class PpoTrainer : ITrainer
     {
         public string Name { get { return "ppo"; } }
         public int Generation { get { return generation; } }
 
-        // Hyperparameters (mainstream PPO defaults).
-        public int ROLLOUT_GAMES = 64;          // games collected per Step
-        public float GAMMA = 0.99f;             // discount
-        public float LAMBDA = 0.95f;            // GAE smoothing
-        public float CLIP_RATIO = 0.2f;         // PPO clip range
-        public int PPO_EPOCHS = 4;              // gradient passes per rollout
+        // Hyperparameters (mainstream PPO defaults). Game count is small
+        // because each game generates a few hundred decisions × 4 seats —
+        // even 16 games already gives a batch of ~10K transitions.
+        public int ROLLOUT_GAMES = 16;
+        public float GAMMA = 0.99f;
+        public float LAMBDA = 0.95f;
+        public float CLIP_RATIO = 0.2f;
+        public int PPO_EPOCHS = 4;
         public float LEARNING_RATE = 3e-4f;
 
-        public MLP policy;                       // actor (same shape as ES)
-        public MLP valueHead;                    // critic — a 127->64->1 MLP next to policy
+        public MLP policy;
+        public MLP valueHead;
+        private TorchPpoBackend backend;
         private int generation = 0;
 
         public void Initialise()
@@ -52,49 +52,82 @@ namespace TRAINING
             valueHead = new MLP(new int[] { MONOPOLY.Projection.PACK_SIZE, 64, 1 });
             valueHead.InitialiseHe(RNG.instance.gen);
 
+            BuildBackend();
             generation = 0;
+        }
+
+        private void BuildBackend()
+        {
+            backend?.Dispose();
+            backend = new TorchPpoBackend(policy.layerSizes, valueHead.layerSizes)
+            {
+                clipEps = CLIP_RATIO,
+                epochs = PPO_EPOCHS,
+                learningRate = LEARNING_RATE,
+            };
         }
 
         public void Step()
         {
-            // 1. Collect ROLLOUT_GAMES games of self-play. Each game emits four
-            //    Trajectory streams (one per seat) into the batch.
+            // 1. Collect rollouts using stochastic-action RecordingPolicy.
             RolloutBatch batch = CollectRollouts(ROLLOUT_GAMES);
-
-            // 2. Compute returns and advantages via GAE for each trajectory.
+            // 2. GAE advantages + returns.
             ComputeAdvantages(batch);
+            // 3. Gradient update via TorchSharp; backend mutates the host MLPs in place.
+            var (pLoss, vLoss, ent) = backend.Update(policy, valueHead, batch);
 
-            // 3. Gradient update — needs TorchSharp / Python.
-            //    The contract a backend implements:
-            //       backend.PpoUpdate(policy.parameters, valueHead.parameters, batch);
-            //    On return, both parameter buffers are mutated in place to the
-            //    new policy / critic weights.
-            throw new NotImplementedException(
-                "PPO data collection works; gradient update needs an external " +
-                "backend (TorchSharp in-process or Python sidecar). " +
-                "Batch ready to ship: " + batch.size + " transitions.");
+            float meanReward = 0.0f; int rewardSteps = 0;
+            for (int t = 0; t < batch.trajectories.Count; t++)
+            {
+                var traj = batch.trajectories[t];
+                for (int i = 0; i < traj.rewards.Count; i++) { meanReward += traj.rewards[i]; rewardSteps++; }
+            }
+            meanReward = rewardSteps > 0 ? meanReward / rewardSteps : 0.0f;
+
+            Console.WriteLine("PPO gen " + generation
+                + " N=" + batch.size
+                + " pLoss=" + pLoss.ToString("0.0000")
+                + " vLoss=" + vLoss.ToString("0.0000")
+                + " entropy=" + ent.ToString("0.0000")
+                + " meanReward=" + meanReward.ToString("0.0000"));
+
+            generation++;
         }
 
-        private RolloutBatch CollectRollouts(int games)
+        // Collect `games` self-play games. Each seat uses a RecordingPolicy
+        // that samples binary actions stochastically and records per-decision
+        // (state, action_dim, action, prob, value). The terminal reward is
+        // attached after each game.
+        protected RolloutBatch CollectRollouts(int games)
         {
             RolloutBatch batch = new RolloutBatch();
             for (int g = 0; g < games; g++)
             {
-                // For pure self-play, all four seats use the current policy.
-                // PSRO-style league mixing could be layered here later.
-                var collectors = new TrajectoryCollector[4];
-                MONOPOLY.IEvaluator[] networks = new MONOPOLY.IEvaluator[4];
+                var recorders = new MONOPOLY.RecordingPolicy[4];
+                MONOPOLY.IPolicy[] policies = new MONOPOLY.IPolicy[4];
                 for (int i = 0; i < 4; i++)
                 {
-                    collectors[i] = new TrajectoryCollector(policy, valueHead);
-                    networks[i] = collectors[i];
+                    recorders[i] = new MONOPOLY.RecordingPolicy(policy, valueHead);
+                    policies[i] = recorders[i];
                 }
 
-                int winnerSeat = Arena.PlayOne(networks);
+                MONOPOLY.Board board = new MONOPOLY.Board(policies);
+                MONOPOLY.Board.EOutcome outcome = MONOPOLY.Board.EOutcome.ONGOING;
+                while (outcome == MONOPOLY.Board.EOutcome.ONGOING) outcome = board.Step();
+
+                int winnerSeat = -1;
+                switch (outcome)
+                {
+                    case MONOPOLY.Board.EOutcome.WIN1: winnerSeat = 0; break;
+                    case MONOPOLY.Board.EOutcome.WIN2: winnerSeat = 1; break;
+                    case MONOPOLY.Board.EOutcome.WIN3: winnerSeat = 2; break;
+                    case MONOPOLY.Board.EOutcome.WIN4: winnerSeat = 3; break;
+                }
 
                 for (int i = 0; i < 4; i++)
                 {
-                    Trajectory t = collectors[i].Finish(winnerSeat == i ? 1.0f : 0.0f);
+                    Trajectory t = recorders[i].Finalise(winnerSeat == i ? 1.0f : 0.0f);
+                    t.seat = i;
                     batch.Add(t);
                 }
             }
@@ -161,6 +194,10 @@ namespace TRAINING
             int cursor = 3;
             for (int p = 0; p < policy.parameters.Length; p++) policy.parameters[p] = float.Parse(lines[cursor++]);
             for (int p = 0; p < valueHead.parameters.Length; p++) valueHead.parameters[p] = float.Parse(lines[cursor++]);
+
+            // Rebuild the torch backend with the loaded shapes; weights are
+            // copied in at the start of each Update so we don't push them now.
+            BuildBackend();
             return true;
         }
 
@@ -174,17 +211,32 @@ namespace TRAINING
     }
 
     // One Trajectory = one player's perspective in one game.
-    // Lists grow per-decision; the recorder appends after every IEvaluator
-    // call routed through TrajectoryCollector.
+    //
+    // Each entry is one *learnable* decision the policy made — currently
+    // the five Bernoulli outputs (buy, mortgage, advance, offer-trade,
+    // accept-trade). Other decisions (jail 3-way, auction bid, build/sell
+    // house counts) are taken deterministically and not recorded here.
+    //
+    // Per-step fields:
+    //   observations[i] : 127-float state at the moment of decision i
+    //   actionDims[i]   : which actor output index (0..8) drove decision i
+    //   actions[i]      : 0 or 1 (the sampled binary action)
+    //   probs[i]        : actor's Y[actionDims[i]] at recording time
+    //                     (the policy-gradient "old" probability)
+    //   values[i]       : critic estimate V(observations[i]) at recording time
+    //   rewards[i]      : 0 for intermediate decisions, +1 for the last
+    //                     decision of the winner, 0 for the last decision
+    //                     of non-winners
     public class Trajectory
     {
         public int seat;
         public List<float[]> observations = new List<float[]>();
-        public List<int> actions = new List<int>();           // discretised action index
-        public List<float> logProbs = new List<float>();
+        public List<int> actionDims = new List<int>();
+        public List<int> actions = new List<int>();
+        public List<float> probs = new List<float>();
         public List<float> values = new List<float>();
         public List<float> rewards = new List<float>();
-        public float[] advantages;                             // filled by ComputeAdvantages
+        public float[] advantages;
         public float[] returns;
     }
 
@@ -197,50 +249,4 @@ namespace TRAINING
         public void Add(Trajectory t) { trajectories.Add(t); size += t.observations.Count; }
     }
 
-    // TrajectoryCollector wraps the policy + value MLPs as a single
-    // IEvaluator (so Arena.PlayOne can drive it). It snoops the
-    // Propagate stream to record per-decision (observation, value)
-    // tuples; the action/logProb are filled later when NeuralPolicy
-    // thresholds the output. For a true RL pipeline you'd want
-    // categorical action sampling rather than thresholding — that
-    // can be layered on top of the existing 9-dim output.
-    //
-    // Per-turn reward is currently zero (only terminal reward used).
-    // To add net-worth-delta shaping: snapshot funds + property
-    // value at every observation, diff between consecutive snapshots.
-    public class TrajectoryCollector : MONOPOLY.IEvaluator
-    {
-        public Trajectory trajectory = new Trajectory();
-        public MLP policy;
-        public MLP valueHead;
-
-        public TrajectoryCollector(MLP p, MLP v) { policy = p; valueHead = v; }
-
-        public float[] Propagate(float[] X)
-        {
-            // record observation + value prediction
-            trajectory.observations.Add((float[])X.Clone());
-            float[] v = valueHead.Propagate(X);
-            trajectory.values.Add(v[0]);
-            // action / logProb / reward populated by Finish; the actor's
-            // forward pass returns the same 9 outputs NeuralPolicy expects.
-            // Logging the actual taken action requires hooking NeuralPolicy
-            // directly — left for the gradient-backend integration.
-            trajectory.actions.Add(-1);
-            trajectory.logProbs.Add(0.0f);
-            trajectory.rewards.Add(0.0f);
-
-            return policy.Propagate(X);
-        }
-
-        // Mark game end and set the terminal reward on the last step.
-        public Trajectory Finish(float terminalReward)
-        {
-            if (trajectory.rewards.Count > 0)
-            {
-                trajectory.rewards[trajectory.rewards.Count - 1] = terminalReward;
-            }
-            return trajectory;
-        }
-    }
 }

@@ -9,4 +9,8 @@
     <OutputPath>bin\Release\</OutputPath>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TorchSharp-cpu" Version="0.107.0" />
+  </ItemGroup>
+
 </Project>

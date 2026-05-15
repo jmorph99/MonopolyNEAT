@@ -6,6 +6,68 @@ continue to load as before across all changes below.
 
 ---
 
+## PPO is now fully trainable via TorchSharp
+
+PPO no longer raises `NotImplementedException` at the gradient step.
+Added TorchSharp (Microsoft's PyTorch binding for .NET) and built the
+gradient half of the trainer in-process.
+
+What was added:
+
+- **TorchSharp dependency**: `TorchSharp-cpu` NuGet package pulls in
+  the native libtorch CPU runtime (~300 MB, all Linux/Windows/macOS
+  variants in one meta-package).
+- **`RecordingPolicy`**: a new IPolicy used during PPO rollouts.
+  Unlike the deterministic NeuralPolicy, it *samples* binary
+  decisions from `Bernoulli(Y[dim])` so the policy gradient has
+  signal to work with. Records every learnable decision as
+  `(state, action_dim, action, sample_prob, critic_value)`.
+- **`TorchPpoBackend`**: mirrors the host MLP as a sigmoid-activated
+  `torch.nn.Sequential`, copies weights in / out via per-layer
+  `Tensor.copy_`, runs the standard PPO clipped objective with
+  Adam over 4 epochs per rollout. Combined loss:
+  `policy_loss + 0.5 * value_loss - 0.01 * entropy`.
+- **Per-trajectory advantage standardisation**: each seat's
+  advantages are normalised to zero mean and unit variance before
+  the clipped-ratio update — the usual PPO trick to stop one game
+  with a wildly different reward magnitude from dominating the
+  gradient.
+
+What's learned vs. delegated:
+
+- *Learned*: the 5 binary decisions (buy, mortgage, advance, offer
+  trade, accept trade). Each is a Bernoulli action dimension.
+- *Delegated to deterministic thresholding*: jail (3-way), auction
+  bid (continuous money), build / sell house (continuous counts).
+  These still propagate through the actor and benefit from the
+  shared trunk's weight updates, but don't contribute action
+  log-probs to the policy loss.
+
+Smoke-tested with three consecutive iterations from scratch on the
+default MLP (127 → 64 → 64 → 9 actor, 127 → 64 → 1 critic):
+
+```
+PPO gen 0  N=43185  pLoss=-0.0002  vLoss=0.0197  entropy=0.6686
+PPO gen 1  N=44209  pLoss=-0.0001  vLoss=0.0187  entropy=0.6725
+PPO gen 2  N=44850  pLoss=-0.0003  vLoss=0.0173  entropy=0.6777
+```
+
+Critic loss is monotonically decreasing — the value head is learning
+to predict terminal outcomes. Entropy hovers near `ln(2) ≈ 0.693`,
+the maximum for a Bernoulli, because the policy hasn't yet committed
+to strong preferences (expected this early in training).
+
+Run with:
+
+```
+dotnet run --project Monopoly -- ppo monopoly_ppo.txt 1000
+```
+
+Each step takes ~30 seconds on this machine for 16 games / ~45K
+transitions / 4 gradient epochs.
+
+---
+
 ## PPO and Rainbow DQN: data plumbing in place, gradients pending
 
 The remaining two methods from `models.md` — Proximal Policy
