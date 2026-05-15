@@ -11,6 +11,19 @@ namespace NEAT
         public int order = 0;
         public int source = 0;
         public int destination = 0;
+
+        // Write this marking's three fields, comma-separated, into the
+        // given StringBuilder. The format is "order,source,destination"
+        // with no trailing comma; the caller is responsible for inserting
+        // separators between markings.
+        public void WriteTo(StringBuilder sb)
+        {
+            sb.Append(order);
+            sb.Append(',');
+            sb.Append(source);
+            sb.Append(',');
+            sb.Append(destination);
+        }
     }
 
     public class Mutation

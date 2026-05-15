@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -110,6 +111,27 @@ namespace NEAT
             }
 
             fitnessSum = sum;
+        }
+
+        // Serialize: "topFitness,staleness&MEMBER1nMEMBER2nMEMBER3..." with
+        // no trailing 'n' after the last member. The caller (Population.Save)
+        // inserts '&' separators between species.
+        public void WriteTo(StringBuilder sb)
+        {
+            sb.Append(topFitness);
+            sb.Append(SerialDelim.COMMA);
+            sb.Append(staleness);
+            sb.Append(SerialDelim.SPECIES);
+
+            int membersCount = members.Count;
+            for (int j = 0; j < membersCount; j++)
+            {
+                members[j].WriteTo(sb);
+                if (j != membersCount - 1)
+                {
+                    sb.Append(SerialDelim.MEMBER);
+                }
+            }
         }
     }
 
@@ -354,6 +376,121 @@ namespace NEAT
             }
 
             return 1;
+        }
+
+        // Save the full population state — generation counter, champion score
+        // (held by the caller's Tournament), historical innovation markings,
+        // and every species + member — to a single delimited text file.
+        //
+        // The on-disk format is preserved byte-identical to what the original
+        // Program.SaveState wrote, so the included monopoly_population *.txt
+        // files load unchanged.
+        public void Save(string path, float championScore)
+        {
+            Console.WriteLine("SAVING POPULATION");
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append(GENERATION);
+            sb.Append(SerialDelim.MAIN);
+            sb.Append(championScore);
+            sb.Append(SerialDelim.MAIN);
+
+            int markings = 0;
+            int historicalCount = Mutation.instance.historical.Count;
+            for (int i = 0; i < historicalCount; i++)
+            {
+                Mutation.instance.historical[i].WriteTo(sb);
+                if (i != historicalCount - 1)
+                {
+                    sb.Append(SerialDelim.COMMA);
+                }
+                markings++;
+            }
+
+            sb.Append(SerialDelim.MAIN);
+
+            int speciesCount = species.Count;
+            int geneCount = 0;
+            for (int i = 0; i < speciesCount; i++)
+            {
+                species[i].WriteTo(sb);
+                // Per-member progress logging preserved from the original
+                // SaveState — handy when saving a large population.
+                for (int j = 0; j < species[i].members.Count; j++)
+                {
+                    geneCount++;
+                    Console.WriteLine(geneCount + "/" + genetics.Count);
+                }
+                if (i != speciesCount - 1)
+                {
+                    sb.Append(SerialDelim.SPECIES);
+                }
+            }
+
+            sb.Append(SerialDelim.MAIN);
+
+            using (StreamWriter sw = new StreamWriter(path))
+            {
+                sw.Write(sb.ToString());
+            }
+
+            Console.WriteLine(markings + " MARKINGS");
+        }
+
+        // Load the population state written by Save. Returns the champion
+        // score via out parameter (since it lives on Tournament, not here);
+        // populates GENERATION, Mutation.instance.historical, this.species,
+        // this.genetics, and rebuilds this.population via InscribePopulation.
+        public void Load(string path, out float championScore)
+        {
+            string load;
+            using (StreamReader sr = new StreamReader(path))
+            {
+                load = sr.ReadToEnd();
+            }
+
+            string[] parts = load.Split(SerialDelim.MAIN);
+
+            int gen = int.Parse(parts[0]);
+            float score = float.Parse(parts[1]);
+
+            GENERATION = gen;
+            championScore = score;
+
+            string markingString = parts[2];
+            string[] markingParts = markingString.Split(SerialDelim.COMMA);
+            for (int i = 0; i < markingParts.GetLength(0); i += 3)
+            {
+                Marking m = new Marking();
+                m.order = int.Parse(markingParts[i]);
+                m.source = int.Parse(markingParts[i + 1]);
+                m.destination = int.Parse(markingParts[i + 2]);
+                Mutation.instance.historical.Add(m);
+            }
+
+            string networkString = parts[3];
+            string[] speciesParts = networkString.Split(SerialDelim.SPECIES);
+
+            for (int x = 0; x < speciesParts.GetLength(0); x += 2)
+            {
+                string[] firstParts = speciesParts[x].Split(SerialDelim.COMMA);
+
+                Species s = new Species();
+                s.topFitness = float.Parse(firstParts[0]);
+                s.staleness = int.Parse(firstParts[1]);
+                species.Add(s);
+
+                string[] networkParts = speciesParts[x + 1].Split(SerialDelim.MEMBER);
+                for (int i = 0; i < networkParts.GetLength(0); i++)
+                {
+                    Genotype genotype = Genotype.Parse(networkParts[i]);
+                    s.members.Add(genotype);
+                    genetics.Add(genotype);
+                }
+            }
+
+            InscribePopulation();
         }
     }
 }

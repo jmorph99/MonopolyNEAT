@@ -6,6 +6,27 @@ continue to load as before across all changes below.
 
 ---
 
+## Saving and loading the population now lives with the population code
+
+Reading and writing the `monopoly_population *.txt` files used to be one
+200-line function in the project's entry point. It reached deep into the
+internals of several other classes and used a custom mix of five
+delimiter characters. Adding a field to the saved data meant editing the
+entry-point file rather than the class that owned the data.
+
+Each class now knows how to write itself: `Marking`, `Genotype`,
+`Species`, and `Population` each have their own `WriteTo` / `Parse`
+methods. The single delimiter set lives in one tiny `SerialDelim` class
+so the on-disk format has one source of truth. The entry-point file
+collapses to two lines for save and load.
+
+**Verified byte-identical:** both shipped checkpoint files
+(`monopoly_population 162.txt` and `monopoly_population champions.txt`)
+load, save back out, and produce files identical to the originals — no
+drift in floating-point formatting or delimiter placement.
+
+---
+
 ## Trading and auction logic moved out of the main game file; games can now be replayed
 
 Two chunks of game logic that used to live tangled inside the main `Board`

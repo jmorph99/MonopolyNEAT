@@ -6,6 +6,17 @@ using System.Threading.Tasks;
 
 namespace NEAT
 {
+    // Single source of truth for the on-disk delimiters. Population.Save and
+    // .Load consume these so the file layout is one place to look.
+    public static class SerialDelim
+    {
+        public const char MAIN = ';';
+        public const char COMMA = ',';
+        public const char SPECIES = '&';
+        public const char MEMBER = 'n';
+        public const char NODE_EDGE = '#';
+    }
+
     public class VertexInfo
     {
         public enum EType
@@ -157,6 +168,70 @@ namespace NEAT
             }
 
             return -1;
+        }
+
+        // Serialize this genotype to the on-disk format: each vertex written
+        // as "index,type," (trailing comma always), the literal '#', then
+        // each edge written as "source,destination,weight,enabled,innovation,"
+        // (trailing comma always). The format is byte-identical to what the
+        // original Program.SaveState produced.
+        public void WriteTo(StringBuilder sb)
+        {
+            int vertexCount = vertices.Count;
+            for (int k = 0; k < vertexCount; k++)
+            {
+                sb.Append(vertices[k].index);
+                sb.Append(SerialDelim.COMMA);
+                sb.Append(vertices[k].type.ToString());
+                sb.Append(SerialDelim.COMMA);
+            }
+
+            sb.Append(SerialDelim.NODE_EDGE);
+
+            int edgeCount = edges.Count;
+            for (int k = 0; k < edgeCount; k++)
+            {
+                sb.Append(edges[k].source);
+                sb.Append(SerialDelim.COMMA);
+                sb.Append(edges[k].destination);
+                sb.Append(SerialDelim.COMMA);
+                sb.Append(edges[k].weight);
+                sb.Append(SerialDelim.COMMA);
+                sb.Append(edges[k].enabled);
+                sb.Append(SerialDelim.COMMA);
+                sb.Append(edges[k].innovation);
+                sb.Append(SerialDelim.COMMA);
+            }
+        }
+
+        // Parse one genotype from its serialized text (one member's worth of
+        // bytes, between two 'n' separators inside a species block).
+        public static Genotype Parse(string text)
+        {
+            Genotype genotype = new Genotype();
+
+            string[] nparts = text.Split(SerialDelim.NODE_EDGE);
+
+            string[] vparts = nparts[0].Split(SerialDelim.COMMA);
+            for (int j = 0; j < vparts.GetLength(0) - 1; j += 2)
+            {
+                int index = int.Parse(vparts[j]);
+                VertexInfo.EType type = (VertexInfo.EType)Enum.Parse(typeof(VertexInfo.EType), vparts[j + 1]);
+                genotype.AddVertex(type, index);
+            }
+
+            string[] eparts = nparts[1].Split(SerialDelim.COMMA);
+            for (int j = 0; j < eparts.GetLength(0) - 1; j += 5)
+            {
+                int source = int.Parse(eparts[j]);
+                int destination = int.Parse(eparts[j + 1]);
+                float weight = float.Parse(eparts[j + 2]);
+                bool enabled = bool.Parse(eparts[j + 3]);
+                int innovation = int.Parse(eparts[j + 4]);
+                genotype.AddEdge(source, destination, weight, enabled, innovation);
+            }
+
+            return genotype;
         }
     }
 }
