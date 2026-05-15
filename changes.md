@@ -6,6 +6,44 @@ continue to load as before across all changes below.
 
 ---
 
+## sep-CMA-ES training
+
+A more sophisticated cousin of OpenAI-ES. CMA-ES ("Covariance Matrix
+Adaptation Evolution Strategy") is the standard high-performance
+black-box optimiser in evolutionary computing — it adapts not just the
+*size* of its random tweaks but also their *shape*, in principle giving
+it a much better feel for the loss surface than plain ES.
+
+The catch: classic CMA-ES tracks the full N×N covariance matrix of
+candidates, which would be ~670 MB of memory for our network. The
+fix used here is **sep-CMA-ES** (Ros & Hansen 2008), which restricts
+the covariance to a diagonal — one variance per parameter, no
+cross-parameter correlations. That makes the memory and compute O(n)
+again and is the standard variant for big networks.
+
+What sep-CMA-ES gives you that plain ES doesn't:
+
+- Step size *adapts*: shrinks when the search is in a good basin,
+  grows when it's wandering. ES needs you to hand-tune this.
+- Per-parameter variance: each weight gets its own learning rate,
+  effectively, based on how much that weight has been moving in
+  successful candidates lately.
+- Uses fewer candidates (32 vs ES's 64) but extracts more signal per
+  candidate.
+
+Run it with:
+
+```
+dotnet run --project Monopoly -- cmaes monopoly_cmaes.txt 1000
+```
+
+Smoke-tested: a fresh Step produced best fitness 5/64 with mean 1.9;
+a second Step resumed cleanly and reported best 10/64 with mean 3.2 —
+the adaptation is making the algorithm settle into the search space.
+Checkpoint file is plain text (one number per line, like ES).
+
+---
+
 ## OpenAI-ES (Evolution Strategies) training
 
 The first new training method: OpenAI-style Evolution Strategies.
