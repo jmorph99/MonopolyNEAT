@@ -221,9 +221,21 @@ namespace MONOPOLY
                 }
                 else if (decision == Player.EJailDecision.CARD)
                 {
-                    if (players[turn].card > 0)
+                    if (players[turn].heldCards.Count > 0)
                     {
-                        players[turn].card--;
+                        // Return the card to the bottom of the deck it
+                        // came from.
+                        GetOutOfJailCard jc = players[turn].heldCards[0];
+                        players[turn].heldCards.RemoveAt(0);
+                        if (jc.origin == GetOutOfJailCard.EOrigin.CHANCE)
+                        {
+                            chance.Add(jc);
+                        }
+                        else
+                        {
+                            chest.Add(jc);
+                        }
+
                         players[turn].jail = 0;
                         players[turn].state = Player.EState.NORMAL;
 
@@ -576,6 +588,16 @@ namespace MONOPOLY
 
                 players[owner].items.Clear();
 
+                // Held Get-Out-of-Jail-Free cards return to the bottom of
+                // their source decks when a player goes bankrupt to the bank.
+                for (int i = 0; i < players[owner].heldCards.Count; i++)
+                {
+                    GetOutOfJailCard jc = players[owner].heldCards[i];
+                    if (jc.origin == GetOutOfJailCard.EOrigin.CHANCE) chance.Add(jc);
+                    else chest.Add(jc);
+                }
+                players[owner].heldCards.Clear();
+
                 //give money to other
                 players[owner].state = Player.EState.RETIRED;
                 remaining--;
@@ -683,7 +705,15 @@ namespace MONOPOLY
 
                 players[owner].items.Clear();
 
-                //give money to other 
+                // Held Get-Out-of-Jail-Free cards transfer to the creditor
+                // along with the rest of the bankrupt player's assets.
+                for (int i = 0; i < players[owner].heldCards.Count; i++)
+                {
+                    players[recipient].heldCards.Add(players[owner].heldCards[i]);
+                }
+                players[owner].heldCards.Clear();
+
+                //give money to other
                 players[owner].state = Player.EState.RETIRED;
                 remaining--;
             }
@@ -781,7 +811,12 @@ namespace MONOPOLY
         {
             Card card = chance[0];
             chance.RemoveAt(0);
-            chance.Add(card);
+            // Get-Out-of-Jail-Free cards leave the deck and are kept by the
+            // drawing player. Every other card rotates to the bottom.
+            if (!(card is GetOutOfJailCard))
+            {
+                chance.Add(card);
+            }
             card.Apply(this, turn);
         }
 
@@ -789,7 +824,10 @@ namespace MONOPOLY
         {
             Card card = chest[0];
             chest.RemoveAt(0);
-            chest.Add(card);
+            if (!(card is GetOutOfJailCard))
+            {
+                chest.Add(card);
+            }
             card.Apply(this, turn);
         }
 

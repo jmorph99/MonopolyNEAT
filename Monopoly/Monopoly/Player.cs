@@ -39,13 +39,23 @@ namespace MONOPOLY
 
         public int jail = 0;
         public int doub = 0;
-        public int card = 0;
 
         public List<int> items;
+
+        // Get-Out-of-Jail-Free cards the player currently holds. Tracked by
+        // reference so they can be returned to the correct deck (Chance or
+        // Community Chest) when used, transferred, or surrendered.
+        public List<GetOutOfJailCard> heldCards;
+
+        // Count of held jail cards. Kept as a read-only property so the
+        // network projection has the same simple integer signal it used to,
+        // and so external "do I have a card?" checks read naturally.
+        public int card { get { return heldCards.Count; } }
 
         public Player()
         {
             items = new List<int>();
+            heldCards = new List<GetOutOfJailCard>();
         }
     }
 }

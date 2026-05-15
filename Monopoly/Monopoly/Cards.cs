@@ -77,10 +77,26 @@ namespace MONOPOLY
 
     public class GetOutOfJailCard : Card
     {
+        public enum EOrigin
+        {
+            CHANCE,
+            CHEST,
+        }
+
+        public readonly EOrigin origin;
+
+        public GetOutOfJailCard(EOrigin o)
+        {
+            origin = o;
+        }
+
         public override void Apply(Board board, int playerIdx)
         {
+            // The card transfers from the deck to the player's hand.
+            // Board.DrawChance / DrawChest is responsible for not rotating
+            // it back to the bottom of the deck.
             Player p = board.players[playerIdx];
-            p.card++;
+            p.heldCards.Add(this);
         }
     }
 
@@ -199,7 +215,7 @@ namespace MONOPOLY
                 new AdvanceToNearestTrainCard(),
                 new AdvanceToNearestUtilityCard(),
                 new RewardCard(50),
-                new GetOutOfJailCard(),
+                new GetOutOfJailCard(GetOutOfJailCard.EOrigin.CHANCE),
                 new BackThreeCard(),
                 new GoToJailCard(),
                 new RepairsCard(),
@@ -218,7 +234,7 @@ namespace MONOPOLY
                 new RewardCard(200),
                 new FineCard(50),
                 new RewardCard(50),
-                new GetOutOfJailCard(),
+                new GetOutOfJailCard(GetOutOfJailCard.EOrigin.CHEST),
                 new GoToJailCard(),
                 new RewardCard(100),
                 new RewardCard(20),

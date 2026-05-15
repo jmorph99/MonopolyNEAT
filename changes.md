@@ -6,6 +6,36 @@ continue to load as before across all changes below.
 
 ---
 
+## Rule fix: Get Out of Jail Free cards are now real physical cards
+
+There are only two Get Out of Jail Free cards in the game — one in
+Chance, one in Community Chest. In real Monopoly, when a player draws
+one, they take physical possession of the card; the deck loses it; no
+one else can draw it until that player uses or surrenders it.
+
+The simulator was leaving the card in the deck. The drawing player got
+a "+1 jail card" counter, but the same card kept cycling through the
+deck and the same player could keep drawing more and more of them.
+Players could even end the game with multiple "uses" of the same
+physical card.
+
+Fixed end-to-end:
+
+- The card now knows which deck it came from (Chance or Community Chest).
+- When drawn, it's removed from its deck and added to the player's hand
+  rather than rotated to the bottom.
+- When used to leave jail, the card is returned to the bottom of its
+  source deck.
+- If a player goes bankrupt to the bank, their held cards return to
+  their source decks.
+- If a player goes bankrupt to another player, their held cards transfer
+  to the creditor.
+
+The network input still reads "do you have any jail cards" as a 0/1
+signal exactly as before — same network compatibility.
+
+---
+
 ## Defensive fix: "Go Back 3 Spaces" card no longer relies on tile layout
 
 The Chance card "Go Back 3 Spaces" was subtracting 3 from the player's
