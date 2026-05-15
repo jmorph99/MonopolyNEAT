@@ -6,6 +6,61 @@ continue to load as before across all changes below.
 
 ---
 
+## PPO and Rainbow DQN: data plumbing in place, gradients pending
+
+The remaining two methods from `models.md` — Proximal Policy
+Optimisation (PPO) and Rainbow Deep Q-Learning (DQN) — both require
+*gradient-based* training. C# doesn't have a built-in autodiff /
+neural-network library at the level we'd need; the realistic options
+are TorchSharp (Microsoft's PyTorch binding, ~hundreds of MB of native
+binaries) or a Python sidecar process that talks to the simulator
+over a socket. Wiring either backend into this project is its own
+substantial work; this commit lays everything *up to* the gradient
+step so that hookup is straightforward when it happens.
+
+What's done in pure C# for both methods:
+
+**PPO**
+- A `TrajectoryCollector` IEvaluator records every per-decision
+  (observation, value-estimate) for each of the 4 seats during a game.
+- After each game, the terminal reward (1 for the winner, 0 for the
+  rest) is attached.
+- Generalised Advantage Estimation (GAE, λ = 0.95) computes per-step
+  advantages and returns over each trajectory.
+- A `RolloutBatch` holds the assembled transitions ready for shipping
+  to the gradient backend.
+- A separate small value head (`127 → 64 → 1` MLP) sits next to the
+  actor and provides V(s) at every observation.
+- A smoke test of one Step collects 246K transitions across 64 games
+  in a few seconds before raising the explicit "needs gradient
+  backend" error.
+
+**Rainbow DQN**
+- A prioritised replay buffer (capacity 1M) with proportional
+  sampling, `UpdatePriorities` API for the backend to feed back
+  TD errors after each gradient step.
+- A `DqnRecorder` IEvaluator captures every transition and a
+  `FinaliseInto` method that assembles **n-step returns**
+  (default n = 3) before pushing to the buffer.
+- A frozen target network sits next to the live Q-network (clone of
+  weights, refresh every `TARGET_UPDATE_EVERY` steps).
+- A smoke test populated the replay buffer with 94K transitions
+  in one Step before raising the gradient-backend error.
+
+What the external gradient backend needs to do (the contract is
+documented in the trainer files):
+
+```
+backend.PpoUpdate(policy.parameters, valueHead.parameters, batch);
+backend.DqnUpdate(qNet.parameters, targetNet.parameters,
+                  replay.SampleBatch(BATCH_SIZE, PRIORITY_BETA));
+```
+
+The simulator side never needs to know about gradients — it ships
+the rollout, gets new weights back, plays the next rollout.
+
+---
+
 ## AlphaZero-style MCTS decision improver
 
 The fifth training method from `models.md` is AlphaZero with chance
