@@ -142,7 +142,8 @@ namespace MONOPOLY
 
         public EMode mode = EMode.ROLL;
 
-        public NeuralPlayer[] players;
+        public Player[] players;
+        public IPolicy[] policies;
         public NetworkAdapter adapter;
         public RNG random;
 
@@ -158,16 +159,17 @@ namespace MONOPOLY
         public List<CardEntry> chest;
         //--------------------  
 
-        public Board(NetworkAdapter _adapter)
+        public Board(NetworkAdapter _adapter, IPolicy[] _policies)
         {
-            players = new NeuralPlayer[PLAYER_COUNT];
+            players = new Player[PLAYER_COUNT];
+            policies = _policies;
             random = new RNG();
 
             adapter = _adapter;
 
             for (int i = 0; i < PLAYER_COUNT; i++)
             {
-                players[i] = new NeuralPlayer();
+                players[i] = new Player();
 
                 adapter.SetPosition(i, players[i].position);
                 adapter.SetMoney(i, players[i].funds);           
@@ -246,7 +248,7 @@ namespace MONOPOLY
             if (players[turn].state == Player.EState.JAIL)
             {
                 adapter.SetTurn(turn);
-                Player.EJailDecision decision = players[turn].DecideJail();
+                Player.EJailDecision decision = policies[turn].DecideJail(players[turn]);
 
                 if (decision == Player.EJailDecision.ROLL)
                 {
@@ -424,7 +426,7 @@ namespace MONOPOLY
 
                     adapter.SetSelectionState(index, 1);
 
-                    Player.EDecision decision = players[turn].DecideAdvance(index);
+                    Player.EDecision decision = policies[turn].DecideAdvance(players[turn], index);
 
                     adapter.SetSelectionState(index, 0);
 
@@ -439,7 +441,7 @@ namespace MONOPOLY
 
                     adapter.SetSelectionState(index, 1);
 
-                    Player.EDecision decision = players[turn].DecideMortgage(index);
+                    Player.EDecision decision = policies[turn].DecideMortgage(players[turn], index);
 
                     adapter.SetSelectionState(index, 0);
 
@@ -468,7 +470,7 @@ namespace MONOPOLY
 
                 adapter.SetSelectionState(SETS[sets[j], 0], 1);
 
-                int decision = players[turn].DecideSellHouse(sets[j]);
+                int decision = policies[turn].DecideSellHouse(players[turn], sets[j]);
 
                 adapter.SetSelectionState(SETS[sets[j], 0], 0);
 
@@ -509,7 +511,7 @@ namespace MONOPOLY
 
                 adapter.SetSelectionState(SETS[sets[j], 0], 1);
 
-                int decision = players[turn].DecideBuildHouse(sets[j]);
+                int decision = policies[turn].DecideBuildHouse(players[turn], sets[j]);
 
                 adapter.SetSelectionState(SETS[sets[j], 0], 0);
 
@@ -616,7 +618,7 @@ namespace MONOPOLY
 
                 adapter.SetMoneyContext(moneyBalance);
 
-                Player.EDecision decision = players[turn].DecideOfferTrade();
+                Player.EDecision decision = policies[turn].DecideOfferTrade(players[turn]);
 
                 if (decision == Player.EDecision.NO)
                 {
@@ -624,7 +626,7 @@ namespace MONOPOLY
                     continue;
                 }
 
-                Player.EDecision decision2 = other.DecideAcceptTrade();
+                Player.EDecision decision2 = policies[other_index].DecideAcceptTrade(other);
 
                 if (decision2 == Player.EDecision.NO)
                 {
@@ -677,7 +679,7 @@ namespace MONOPOLY
 
                 adapter.SetSelectionState(index, 1);
 
-                bids[i] = players[i].DecideAuctionBid(index);
+                bids[i] = policies[i].DecideAuctionBid(players[i], index);
 
                 adapter.SetSelectionState(index, 0);
 
@@ -790,7 +792,7 @@ namespace MONOPOLY
                 {
                     adapter.SetTurn(turn);
                     adapter.SetSelection(index);
-                    Player.EBuyDecision decision = players[turn].DecideBuy(index);
+                    Player.EBuyDecision decision = policies[turn].DecideBuy(players[turn], index);
 
                     if (decision == Player.EBuyDecision.BUY)
                     {
@@ -837,7 +839,7 @@ namespace MONOPOLY
                 {
                     adapter.SetTurn(turn);
                     adapter.SetSelection(index);
-                    Player.EBuyDecision decision = players[turn].DecideBuy(index);
+                    Player.EBuyDecision decision = policies[turn].DecideBuy(players[turn], index);
 
                     if (decision == Player.EBuyDecision.BUY)
                     {
@@ -894,7 +896,7 @@ namespace MONOPOLY
 
                     adapter.SetSelectionState(index, 1);
 
-                    Player.EBuyDecision decision = players[turn].DecideBuy(index);
+                    Player.EBuyDecision decision = policies[turn].DecideBuy(players[turn], index);
 
                     adapter.SetSelectionState(index, 0);
 
@@ -992,7 +994,7 @@ namespace MONOPOLY
 
                     adapter.SetSelectionState(SETS[sets[j], 0], 1);
 
-                    int decision = players[turn].DecideSellHouse(sets[j]);
+                    int decision = policies[turn].DecideSellHouse(players[turn], sets[j]);
 
                     adapter.SetSelectionState(SETS[sets[j], 0], 0);
 
@@ -1020,7 +1022,7 @@ namespace MONOPOLY
 
                     adapter.SetSelectionState(players[owner].items[i], 1);
 
-                    Player.EDecision decision = players[owner].DecideMortgage(players[owner].items[i]);
+                    Player.EDecision decision = policies[owner].DecideMortgage(players[owner], players[owner].items[i]);
 
                     adapter.SetSelectionState(players[owner].items[i], 0);
 
@@ -1095,7 +1097,7 @@ namespace MONOPOLY
 
                     adapter.SetSelectionState(SETS[sets[j], 0], 1);
 
-                    int decision = players[turn].DecideSellHouse(sets[j]);
+                    int decision = policies[turn].DecideSellHouse(players[turn], sets[j]);
 
                     adapter.SetSelectionState(SETS[sets[j], 0], 0);
 
@@ -1123,7 +1125,7 @@ namespace MONOPOLY
 
                     adapter.SetSelectionState(players[owner].items[i], 0);
 
-                    Player.EDecision decision = players[owner].DecideMortgage(players[owner].items[i]);
+                    Player.EDecision decision = policies[owner].DecideMortgage(players[owner], players[owner].items[i]);
 
                     adapter.SetSelectionState(players[owner].items[i], 1);
 
@@ -1450,7 +1452,7 @@ namespace MONOPOLY
 
                 adapter.SetSelectionState(index, 0);
 
-                Player.EBuyDecision decision = players[turn].DecideBuy(index);
+                Player.EBuyDecision decision = policies[turn].DecideBuy(players[turn], index);
 
                 adapter.SetSelectionState(index, 1);
 
@@ -1530,7 +1532,7 @@ namespace MONOPOLY
             if (owner == BANK_INDEX)
             {
                 adapter.SetTurn(turn);
-                Player.EBuyDecision decision = players[turn].DecideBuy(index);
+                Player.EBuyDecision decision = policies[turn].DecideBuy(players[turn], index);
 
                 if (decision == Player.EBuyDecision.BUY)
                 {

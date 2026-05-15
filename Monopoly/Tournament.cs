@@ -164,19 +164,24 @@ namespace Monopoly
             for (int game = 0; game < BATCH_SIZE; game++)
             {
                 NetworkAdapter adapter = new NetworkAdapter();
-                MONOPOLY.Board board = new MONOPOLY.Board(adapter);
 
-                board.players[0].network = instance.contestants[i];
-                board.players[1].network = instance.contestants[i + 1];
-                board.players[2].network = instance.contestants[i + 2];
-                board.players[3].network = instance.contestants[i + 3];
+                NEAT.Phenotype[] networks = new NEAT.Phenotype[]
+                {
+                    instance.contestants[i],
+                    instance.contestants[i + 1],
+                    instance.contestants[i + 2],
+                    instance.contestants[i + 3],
+                };
 
-                board.players[0].adapter = adapter;
-                board.players[1].adapter = adapter;
-                board.players[2].adapter = adapter;
-                board.players[3].adapter = adapter;
+                networks = RNG.instance.Shuffle(networks);
 
-                board.players = RNG.instance.Shuffle(board.players);
+                MONOPOLY.IPolicy[] policies = new MONOPOLY.IPolicy[4];
+                for (int p = 0; p < 4; p++)
+                {
+                    policies[p] = new MONOPOLY.NeuralPolicy(networks[p], adapter);
+                }
+
+                MONOPOLY.Board board = new MONOPOLY.Board(adapter, policies);
 
                 MONOPOLY.Board.EOutcome outcome = MONOPOLY.Board.EOutcome.ONGOING;
 
@@ -185,75 +190,40 @@ namespace Monopoly
                     outcome = board.Step();
                 }
 
-                if (outcome == MONOPOLY.Board.EOutcome.WIN1)
+                int winnerSeat = -1;
+                switch (outcome)
                 {
-                    lock (board.players[0].network)
-                    {
-                        board.players[0].network.score += 1.0f;
-                    }
-
-                    for (int b = 0; b < board.players[0].items.Count; b++)
-                    {
-                        lock (Monopoly.Analytics.instance.wins)
-                        {
-                            Monopoly.Analytics.instance.MarkWin(board.players[0].items[b]);
-                        }
-                    }
-                   
+                    case MONOPOLY.Board.EOutcome.WIN1: winnerSeat = 0; break;
+                    case MONOPOLY.Board.EOutcome.WIN2: winnerSeat = 1; break;
+                    case MONOPOLY.Board.EOutcome.WIN3: winnerSeat = 2; break;
+                    case MONOPOLY.Board.EOutcome.WIN4: winnerSeat = 3; break;
                 }
-                else if (outcome == MONOPOLY.Board.EOutcome.WIN2)
+
+                if (winnerSeat >= 0)
                 {
-                    lock (board.players[1].network)
+                    NEAT.Phenotype winner = networks[winnerSeat];
+                    lock (winner)
                     {
-                        board.players[1].network.score += 1.0f;
+                        winner.score += 1.0f;
                     }
 
-                    for (int b = 0; b < board.players[1].items.Count; b++)
+                    MONOPOLY.Player winnerPlayer = board.players[winnerSeat];
+                    for (int b = 0; b < winnerPlayer.items.Count; b++)
                     {
                         lock (Monopoly.Analytics.instance.wins)
                         {
-                            Monopoly.Analytics.instance.MarkWin(board.players[1].items[b]);
-                        }
-                    }
-                }
-                else if (outcome == MONOPOLY.Board.EOutcome.WIN3)
-                {
-                    lock (board.players[2].network)
-                    {
-                        board.players[2].network.score += 1.0f;
-                    }
-
-                    for (int b = 0; b < board.players[2].items.Count; b++)
-                    {
-                        lock (Monopoly.Analytics.instance.wins)
-                        {
-                            Monopoly.Analytics.instance.MarkWin(board.players[2].items[b]);
-                        }
-                    }
-                }
-                else if (outcome == MONOPOLY.Board.EOutcome.WIN4)
-                {
-                    lock (board.players[3].network)
-                    {
-                        board.players[3].network.score += 1.0f;
-                    }
-
-                    for (int b = 0; b < board.players[3].items.Count; b++)
-                    {
-                        lock (Monopoly.Analytics.instance.wins)
-                        {
-                            Monopoly.Analytics.instance.MarkWin(board.players[3].items[b]);
+                            Monopoly.Analytics.instance.MarkWin(winnerPlayer.items[b]);
                         }
                     }
                 }
                 else if (outcome == MONOPOLY.Board.EOutcome.DRAW)
                 {
-                    lock (board.players)
+                    lock (networks)
                     {
-                        board.players[0].network.score += 0.25f;
-                        board.players[1].network.score += 0.25f;
-                        board.players[2].network.score += 0.25f;
-                        board.players[3].network.score += 0.25f;
+                        networks[0].score += 0.25f;
+                        networks[1].score += 0.25f;
+                        networks[2].score += 0.25f;
+                        networks[3].score += 0.25f;
                     }
                 }
             }

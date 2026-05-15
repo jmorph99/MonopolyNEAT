@@ -6,6 +6,32 @@ continue to load as before across all changes below.
 
 ---
 
+## Separated a player's game state from how they make decisions
+
+A "player" in the code used to mean two different things stitched together:
+their game-state (where their token is, how much money they have, what
+properties they own) and their decision-making (whether to buy, mortgage,
+trade, etc.). The neural-network version inherited from the basic version
+and overrode every decision method. This made the project hard to extend:
+you couldn't, for instance, pit a learned network against the simple
+hard-coded "always buy" baseline without subclass gymnastics, and you
+couldn't test a network's decisions without standing up an entire game.
+
+Now those two things are separate. `Player` is just the in-game record
+(position, funds, items, etc.). `IPolicy` is the decision-making
+interface, with `NeuralPolicy` for trained networks and `ScriptedPolicy`
+for the hard-coded baseline. The board holds a player **and** a policy
+for each seat.
+
+For tournaments this changes nothing visible — the same four trained
+networks play the same games, get the same scores, and the same network
+files load. It opens the door to evaluating a trained network against the
+scripted baseline as a sanity-check opponent, or to writing tests that
+ask "what would this network do in this exact situation?" without
+simulating a full game.
+
+---
+
 ## Fixed a threading hazard in the network evaluator
 
 Tournament play runs 20 game-playing threads in parallel, and the same

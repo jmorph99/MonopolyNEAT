@@ -35,10 +35,10 @@ public class RNG
         return shuffle;
     }
 
-    public MONOPOLY.NeuralPlayer[] Shuffle(MONOPOLY.NeuralPlayer[] list)
+    public NEAT.Phenotype[] Shuffle(NEAT.Phenotype[] list)
     {
-        List<MONOPOLY.NeuralPlayer> container = new List<MONOPOLY.NeuralPlayer>(list);
-        List<MONOPOLY.NeuralPlayer> shuffle = new List<MONOPOLY.NeuralPlayer>();
+        List<NEAT.Phenotype> container = new List<NEAT.Phenotype>(list);
+        List<NEAT.Phenotype> shuffle = new List<NEAT.Phenotype>();
 
         for (int i = 0; i < container.Count;)
         {
