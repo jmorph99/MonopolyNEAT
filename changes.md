@@ -6,6 +6,30 @@ continue to load as before across all changes below.
 
 ---
 
+## Rule fix: owning a complete color set without houses doubles rent
+
+If you own all three of a color group (or both of brown/dark blue) and
+nobody's built a house yet, the rulebook says landing on any of those
+properties pays double the base rent. This is the core reason completing
+a set matters before you can afford to build.
+
+The simulator wasn't applying the doubling: rent was always read straight
+from the rent table at whatever house count the property had. So
+collecting a full set with zero houses was strategically equivalent to
+owning two-out-of-three from the network's point of view — same rent
+income, same incentive to trade for the third.
+
+Fixed in `PropertyTile`: when rent is being computed, the new
+`Board.OwnsCompleteSet` helper checks whether the owner holds the whole
+color group. If they do **and** this property has zero houses, the base
+rent is doubled.
+
+Together with the doubles-counter fix, this is the second of the two
+changes most likely to push the trained networks toward different play
+styles (more interest in completing sets even before they can build).
+
+---
+
 ## Rule fix: rolling doubles no longer carries over between turns
 
 In real Monopoly, "three doubles in a row" means three doubles **in the

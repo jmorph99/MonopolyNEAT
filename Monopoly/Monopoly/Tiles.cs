@@ -102,6 +102,12 @@ namespace MONOPOLY
             else if (!board.mortgaged[index])
             {
                 int rent = Board.PROPERTY_PENALTIES[board.property[index], board.houses[index]];
+                // Monopoly rule: rent is doubled on unimproved lots when the
+                // owner holds the complete color group.
+                if (board.houses[index] == 0 && board.OwnsCompleteSet(owner, index))
+                {
+                    rent *= 2;
+                }
                 board.PaymentToPlayer(playerIdx, owner, rent);
             }
         }

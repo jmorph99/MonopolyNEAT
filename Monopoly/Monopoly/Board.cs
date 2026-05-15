@@ -686,6 +686,31 @@ namespace MONOPOLY
             Payment(owners[index], cost);
         }
 
+        // True if `playerIdx` owns every property in the color group that
+        // contains `boardIdx`. Used by PropertyTile to apply the unimproved-
+        // monopoly 2x rent multiplier. Returns false if boardIdx isn't a
+        // property tile (e.g. railroad or utility).
+        public bool OwnsCompleteSet(int playerIdx, int boardIdx)
+        {
+            for (int s = 0; s < 8; s++)
+            {
+                int a = SETS[s, 0];
+                int b = SETS[s, 1];
+                int c = SETS[s, 2];
+
+                if (a != boardIdx && b != boardIdx && c != boardIdx)
+                {
+                    continue;
+                }
+
+                if (owners[a] != playerIdx) return false;
+                if (owners[b] != playerIdx) return false;
+                if (c != -1 && owners[c] != playerIdx) return false;
+                return true;
+            }
+            return false;
+        }
+
         public int CountTrains(int player)
         {
             int itemCount = players[player].items.Count;
